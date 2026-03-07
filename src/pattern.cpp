@@ -27,15 +27,22 @@ void print_normalized_rows(std::ostream& out, const PatternData& pattern) {
     out << std::setfill(' ');
 }
 
-PatternSnapshot build_snapshot(PatternData pattern, uint64_t file_timestamp, uint64_t file_size) {
+PatternSnapshot build_snapshot(
+    PatternData pattern,
+    std::vector<std::string> source_lines,
+    uint64_t file_timestamp,
+    uint64_t file_size,
+    uint32_t display_generation) {
     PatternSnapshot snapshot;
     snapshot.pattern = std::move(pattern);
     snapshot.frequency_hz.resize(120);
     for (uint8_t note_index = 0; note_index < snapshot.frequency_hz.size(); ++note_index) {
         snapshot.frequency_hz[note_index] = note_index_to_frequency(note_index);
     }
+    snapshot.source_lines = std::move(source_lines);
     snapshot.file_timestamp = file_timestamp;
     snapshot.file_size = file_size;
+    snapshot.display_generation = display_generation;
     return snapshot;
 }
 

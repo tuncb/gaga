@@ -6,6 +6,7 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 #include "audio.hpp"
@@ -14,6 +15,7 @@
 #include "parser.hpp"
 #include "pattern.hpp"
 #include "source_text.hpp"
+#include "terminal_display.hpp"
 #include "tokenizer.hpp"
 #include "version.hpp"
 
@@ -117,7 +119,38 @@ struct SnapshotLoadResult {
     std::shared_ptr<PatternSnapshot> snapshot;
 };
 
-tl::expected<SnapshotLoadResult, std::vector<Diagnostic>> load_snapshot_with_source(const std::string& path) {
+std::vector<std::string> split_source_lines(const SourceText& source) {
+    std::vector<std::string> lines;
+    std::string current_line;
+
+    size_t index = 0;
+    while (index < source.bytes.size()) {
+        const char current = source.bytes[index];
+        if (current == '\r' || current == '\n') {
+            lines.push_back(current_line);
+            current_line.clear();
+
+            if (current == '\r' && index + 1 < source.bytes.size() && source.bytes[index + 1] == '\n') {
+                ++index;
+            }
+        } else {
+            current_line.push_back(current);
+        }
+
+        ++index;
+    }
+
+    if (!current_line.empty() ||
+        (!source.bytes.empty() && source.bytes.back() != '\r' && source.bytes.back() != '\n')) {
+        lines.push_back(std::move(current_line));
+    }
+
+    return lines;
+}
+
+tl::expected<SnapshotLoadResult, std::vector<Diagnostic>> load_snapshot_with_source(
+    const std::string& path,
+    uint32_t display_generation) {
     auto source_result = load_source_text(path);
     if (!source_result) {
         std::cerr << "error: " << path << ": " << source_result.error().detail << "\n";
@@ -142,7 +175,12 @@ tl::expected<SnapshotLoadResult, std::vector<Diagnostic>> load_snapshot_with_sou
     }
 
     auto snapshot = std::make_shared<PatternSnapshot>(
-        build_snapshot(std::move(parse.pattern), metadata.timestamp, metadata.size));
+        build_snapshot(
+            std::move(parse.pattern),
+            split_source_lines(source),
+            metadata.timestamp,
+            metadata.size,
+            display_generation));
     return SnapshotLoadResult{std::move(source), std::move(snapshot)};
 }
 
@@ -189,7 +227,8 @@ void print_trace_rows(std::ostream& out, const PatternSnapshot& snapshot) {
 }
 
 int run(const CliOptions& options) {
-    auto initial = load_snapshot_with_source(options.path);
+    uint32_t next_display_generation = 1;
+    auto initial = load_snapshot_with_source(options.path, next_display_generation++);
     if (!initial) {
         auto source = load_source_text(options.path);
         if (source) {
@@ -200,8 +239,12 @@ int run(const CliOptions& options) {
         return 1;
     }
 
-    print_normalized_rows(std::cout, initial.value().snapshot->pattern);
-    if (options.trace) {
+    TerminalDisplay display;
+    const bool live_display_enabled = !options.trace && display.initialize(std::cout);
+    if (!live_display_enabled) {
+        print_normalized_rows(std::cout, initial.value().snapshot->pattern);
+    }
+    if (!live_display_enabled && options.trace) {
         print_trace_rows(std::cout, *initial.value().snapshot);
     }
 
@@ -209,14 +252,27 @@ int run(const CliOptions& options) {
     if (const auto init_audio =
             initialize_audio_engine(engine, initial.value().snapshot, options.bpm, options.lpb, options.loop);
         !init_audio) {
+        display.shutdown();
         std::cerr << "fatal: " << runtime_error_message(init_audio.error()) << "\n";
         return 2;
     }
 
     if (const auto start_audio = start_audio_engine(engine); !start_audio) {
+        display.shutdown();
         std::cerr << "fatal: " << runtime_error_message(start_audio.error()) << "\n";
         stop_audio_engine(engine);
         return 2;
+    }
+
+    std::unordered_map<uint32_t, std::shared_ptr<const PatternSnapshot>> snapshots_by_generation;
+    snapshots_by_generation.emplace(
+        initial.value().snapshot->display_generation,
+        initial.value().snapshot);
+    std::shared_ptr<const PatternSnapshot> displayed_snapshot = initial.value().snapshot;
+
+    if (live_display_enabled) {
+        const uint64_t display_state = engine.display_state.load(std::memory_order_acquire);
+        display.render(*displayed_snapshot, decode_display_row(display_state), true);
     }
 
     FileMetadata observed_metadata{
@@ -228,23 +284,36 @@ int run(const CliOptions& options) {
 
     while (true) {
         RuntimeEvent event;
+        bool force_redraw = false;
         while (pop_runtime_event(engine.runtime_events, event)) {
             if (event.severity == RuntimeSeverity::Fatal) {
+                display.shutdown();
                 std::cerr << "fatal: " << runtime_error_message(event.kind) << "\n";
                 stop_audio_engine(engine);
                 return 3;
             }
 
             std::cerr << "warning: " << runtime_error_message(event.kind) << "\n";
+            force_redraw = true;
         }
 
         if (engine.shutdown_requested.load(std::memory_order_acquire)) {
+            display.shutdown();
             std::cerr << "fatal: " << runtime_error_message(RuntimeErrorKind::InternalStateError) << "\n";
             stop_audio_engine(engine);
             return 3;
         }
 
         if (engine.playback_finished.load(std::memory_order_acquire)) {
+            if (live_display_enabled) {
+                const uint64_t display_state = engine.display_state.load(std::memory_order_acquire);
+                const uint32_t active_generation = decode_display_generation(display_state);
+                const auto snapshot_it = snapshots_by_generation.find(active_generation);
+                if (snapshot_it != snapshots_by_generation.end()) {
+                    displayed_snapshot = snapshot_it->second;
+                }
+                display.render(*displayed_snapshot, decode_display_row(display_state), true);
+            }
             stop_audio_engine(engine);
             return 0;
         }
@@ -255,12 +324,13 @@ int run(const CliOptions& options) {
                 if (!file_watch_warning_reported) {
                     std::cerr << "warning: reload failed, continuing with previous pattern\n";
                     file_watch_warning_reported = true;
+                    force_redraw = true;
                 }
             } else if (metadata_result.value().timestamp != observed_metadata.timestamp ||
                        metadata_result.value().size != observed_metadata.size) {
                 file_watch_warning_reported = false;
                 observed_metadata = metadata_result.value();
-                auto reload = load_snapshot_with_source(options.path);
+                auto reload = load_snapshot_with_source(options.path, next_display_generation++);
                 if (!reload) {
                     if (warned_metadata.timestamp != observed_metadata.timestamp ||
                         warned_metadata.size != observed_metadata.size) {
@@ -272,13 +342,39 @@ int run(const CliOptions& options) {
                         }
                         std::cerr << "warning: reload failed, continuing with previous pattern\n";
                         warned_metadata = observed_metadata;
+                        force_redraw = true;
                     }
                 } else {
                     warned_metadata = FileMetadata{};
+                    snapshots_by_generation.emplace(
+                        reload.value().snapshot->display_generation,
+                        reload.value().snapshot);
                     store_pending_snapshot(engine, reload.value().snapshot);
                 }
             } else {
                 file_watch_warning_reported = false;
+            }
+        }
+
+        if (live_display_enabled) {
+            const uint64_t display_state = engine.display_state.load(std::memory_order_acquire);
+            const uint32_t active_generation = decode_display_generation(display_state);
+            const auto snapshot_it = snapshots_by_generation.find(active_generation);
+            if (snapshot_it != snapshots_by_generation.end()) {
+                if (displayed_snapshot != snapshot_it->second) {
+                    displayed_snapshot = snapshot_it->second;
+                    force_redraw = true;
+                }
+
+                display.render(*displayed_snapshot, decode_display_row(display_state), force_redraw);
+
+                for (auto it = snapshots_by_generation.begin(); it != snapshots_by_generation.end();) {
+                    if (it->first < active_generation) {
+                        it = snapshots_by_generation.erase(it);
+                    } else {
+                        ++it;
+                    }
+                }
             }
         }
 

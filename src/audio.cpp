@@ -25,6 +25,12 @@ void push_runtime_event(RuntimeEventQueue& queue, const RuntimeEvent& event) {
     queue.write_index.store(write + 1, std::memory_order_release);
 }
 
+void publish_display_state(AudioEngine& engine, const PatternSnapshot& snapshot, uint32_t row) {
+    engine.display_state.store(
+        encode_display_state(snapshot.display_generation, row),
+        std::memory_order_release);
+}
+
 void render_frames(float* output, uint32_t frames, uint32_t channels, SynthVoice& voice) {
     for (uint32_t frame = 0; frame < frames; ++frame) {
         const float sample = next_sample(voice);
@@ -91,6 +97,7 @@ void audio_callback(ma_device* device, void* output, const void* input, ma_uint3
             engine->transport.current_row = 0;
             engine->transport.frames_until_row = engine->transport.frames_per_row;
             if (engine->active_snapshot->pattern.row_count() == 0) {
+                publish_display_state(*engine, *engine->active_snapshot, kNoDisplayedRow);
                 note_off(engine->voice);
                 continue;
             }
@@ -101,6 +108,7 @@ void audio_callback(ma_device* device, void* output, const void* input, ma_uint3
                 engine->voice,
                 engine->active_snapshot->frequency_hz,
                 engine->sample_rate);
+            publish_display_state(*engine, *engine->active_snapshot, 0);
             continue;
         }
 
@@ -112,6 +120,7 @@ void audio_callback(ma_device* device, void* output, const void* input, ma_uint3
             engine->voice,
             engine->active_snapshot->frequency_hz,
             engine->sample_rate);
+        publish_display_state(*engine, *engine->active_snapshot, engine->transport.current_row);
     }
 }
 
@@ -130,13 +139,18 @@ tl::expected<void, RuntimeErrorKind> initialize_audio_engine(
         loop_enabled,
         engine.active_snapshot != nullptr && engine.active_snapshot->pattern.row_count() > 0);
 
-    if (engine.active_snapshot != nullptr && engine.active_snapshot->pattern.row_count() > 0) {
+    if (engine.active_snapshot == nullptr) {
+        engine.display_state.store(encode_display_state(0, kNoDisplayedRow), std::memory_order_release);
+    } else if (engine.active_snapshot->pattern.row_count() > 0) {
         apply_row_event(
             engine.active_snapshot->pattern,
             0,
             engine.voice,
             engine.active_snapshot->frequency_hz,
             engine.sample_rate);
+        publish_display_state(engine, *engine.active_snapshot, 0);
+    } else {
+        publish_display_state(engine, *engine.active_snapshot, kNoDisplayedRow);
     }
 
     auto* device = new ma_device{};

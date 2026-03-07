@@ -35,6 +35,7 @@ add_executable(gaga
     src/pattern.cpp
     src/source_text.cpp
     src/synth.cpp
+    src/terminal_display.cpp
     src/tokenizer.cpp
     src/transport.cpp
 )
