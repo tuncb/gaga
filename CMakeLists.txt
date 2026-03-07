@@ -50,6 +50,12 @@ target_link_libraries(gaga PRIVATE Threads::Threads)
 
 if(WIN32)
     target_link_libraries(gaga PRIVATE avrt ole32 winmm)
+elseif(APPLE)
+    target_link_libraries(gaga PRIVATE
+        "-framework AudioToolbox"
+        "-framework CoreAudio"
+        "-framework CoreFoundation"
+    )
 elseif(UNIX AND NOT APPLE)
     target_link_libraries(gaga PRIVATE dl m)
 endif()
