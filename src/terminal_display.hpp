@@ -17,6 +17,7 @@ public:
     TerminalDisplay& operator=(const TerminalDisplay&) = delete;
 
     bool initialize(std::ostream& out);
+    bool poll_escape_pressed();
     void render(const PatternSnapshot& snapshot, uint32_t active_row, bool force_redraw = false);
     void shutdown();
 

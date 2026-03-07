@@ -38,3 +38,5 @@ build-msvc\gaga.exe path\to\pattern.gaga --loop
 build-msvc\gaga.exe path\to\pattern.gaga --bpm 120 --lpb 4
 build-msvc\gaga.exe path\to\pattern.gaga --trace
 ```
+
+While playback is running in the interactive terminal view, press `Esc` to stop and exit.

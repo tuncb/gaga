@@ -47,6 +47,9 @@ void print_help(std::ostream& out) {
     out << "  --trace      print normalized playback rows\n";
     out << "  --bpm N      set beats per minute (default: 120)\n";
     out << "  --lpb N      set lines per beat (default: 4)\n";
+    out << "\n";
+    out << "runtime:\n";
+    out << "  Esc          stop playback and exit\n";
 }
 
 tl::expected<CliOptions, std::string> parse_cli(int argc, char** argv) {
@@ -314,6 +317,12 @@ int run(const CliOptions& options) {
                 }
                 display.render(*displayed_snapshot, decode_display_row(display_state), true);
             }
+            stop_audio_engine(engine);
+            return 0;
+        }
+
+        if (display.poll_escape_pressed()) {
+            display.shutdown();
             stop_audio_engine(engine);
             return 0;
         }

@@ -8,6 +8,7 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
+#include <conio.h>
 #include <windows.h>
 #include <io.h>
 #else
@@ -66,6 +67,27 @@ bool TerminalDisplay::initialize(std::ostream& out) {
     *out_ << "\x1b[?25l";
     out_->flush();
     return true;
+}
+
+bool TerminalDisplay::poll_escape_pressed() {
+#ifdef _WIN32
+    if (!enabled_ || _isatty(_fileno(stdin)) == 0) {
+        return false;
+    }
+
+    while (_kbhit() != 0) {
+        const int key = _getch();
+        if (key == 27) {
+            return true;
+        }
+
+        if ((key == 0 || key == 224) && _kbhit() != 0) {
+            (void)_getch();
+        }
+    }
+#endif
+
+    return false;
 }
 
 void TerminalDisplay::render(const PatternSnapshot& snapshot, uint32_t active_row, bool force_redraw) {
