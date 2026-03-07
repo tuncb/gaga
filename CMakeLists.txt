@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(FetchContent)
+include(CTest)
 
 if(POLICY CMP0169)
     cmake_policy(SET CMP0169 OLD)
@@ -15,7 +16,7 @@ endif()
 FetchContent_Declare(
     miniaudio
     GIT_REPOSITORY https://github.com/mackron/miniaudio.git
-    GIT_TAG master
+    GIT_TAG 9634bedb5b5a2ca38c1ee7108a9358a4e233f14d # miniaudio 0.11.25
     GIT_SHALLOW TRUE
 )
 
@@ -44,11 +45,26 @@ target_include_directories(gaga PRIVATE
     ${miniaudio_SOURCE_DIR}
 )
 
+find_package(Threads REQUIRED)
+target_link_libraries(gaga PRIVATE Threads::Threads)
+
 if(WIN32)
     target_link_libraries(gaga PRIVATE avrt ole32 winmm)
+elseif(UNIX AND NOT APPLE)
+    target_link_libraries(gaga PRIVATE dl m)
 endif()
 
-include(CTest)
+install(TARGETS gaga
+    RUNTIME DESTINATION .
+)
+
+install(FILES README.md
+    DESTINATION .
+)
+
+install(DIRECTORY examples/
+    DESTINATION examples
+)
 
 if(BUILD_TESTING)
     add_executable(gaga_tests
