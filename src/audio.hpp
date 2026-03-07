@@ -47,7 +47,7 @@ struct RuntimeEventQueue {
 struct AudioEngine {
     ma_device* device_handle = nullptr;
     std::shared_ptr<const PatternSnapshot> active_snapshot;
-    std::atomic<std::shared_ptr<const PatternSnapshot>> pending_snapshot;
+    std::shared_ptr<const PatternSnapshot> pending_snapshot;
     RuntimeEventQueue runtime_events;
     TransportState transport;
     SynthVoice voice;
