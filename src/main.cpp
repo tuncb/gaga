@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "audio.hpp"
+#include "audio_debug.hpp"
 #include "diagnostics.hpp"
 #include "file_watch.hpp"
 #include "parser.hpp"
@@ -25,16 +26,18 @@ namespace {
 
 struct CliOptions {
     std::string path;
+    std::string render_wav_path;
     int bpm = 120;
     int lpb = 4;
     bool loop = false;
     bool trace = false;
+    bool analyze_audio = false;
     bool show_help = false;
     bool show_version = false;
 };
 
 std::string usage_line() {
-    return "usage: gaga <file.gaga> [--loop] [--trace] [--bpm N] [--lpb N]";
+    return "usage: gaga <file.gaga> [--loop] [--trace] [--analyze-audio] [--render-wav PATH] [--bpm N] [--lpb N]";
 }
 
 void print_help(std::ostream& out) {
@@ -45,6 +48,10 @@ void print_help(std::ostream& out) {
     out << "  --version    show version information\n";
     out << "  --loop       reload the file while playing\n";
     out << "  --trace      print normalized playback rows\n";
+    out << "  --analyze-audio\n";
+    out << "               render one offline pass, print signal diagnostics, and exit\n";
+    out << "  --render-wav PATH\n";
+    out << "               render one offline pass to a wav file and exit\n";
     out << "  --bpm N      set beats per minute (default: 120)\n";
     out << "  --lpb N      set lines per beat (default: 4)\n";
     out << "\n";
@@ -74,6 +81,20 @@ tl::expected<CliOptions, std::string> parse_cli(int argc, char** argv) {
 
         if (argument == "--trace") {
             options.trace = true;
+            continue;
+        }
+
+        if (argument == "--analyze-audio") {
+            options.analyze_audio = true;
+            continue;
+        }
+
+        if (argument == "--render-wav") {
+            if (index + 1 >= argc) {
+                return tl::unexpected(std::string("missing value for ") + argument);
+            }
+
+            options.render_wav_path = argv[++index];
             continue;
         }
 
@@ -112,6 +133,10 @@ tl::expected<CliOptions, std::string> parse_cli(int argc, char** argv) {
 
     if (options.path.empty()) {
         return tl::unexpected(usage_line());
+    }
+
+    if (!options.render_wav_path.empty() && options.loop) {
+        return tl::unexpected(std::string("--render-wav cannot be used with --loop"));
     }
 
     return options;
@@ -240,6 +265,31 @@ int run(const CliOptions& options) {
             }
         }
         return 1;
+    }
+
+    AudioDebugConfig debug_config;
+    debug_config.bpm = options.bpm;
+    debug_config.lpb = options.lpb;
+
+    if (options.analyze_audio || !options.render_wav_path.empty()) {
+        const bool capture_samples = !options.render_wav_path.empty();
+        const auto rendered = render_pattern_audio_debug(*initial.value().snapshot, debug_config, capture_samples);
+
+        if (options.analyze_audio) {
+            print_audio_debug_summary(std::cout, *initial.value().snapshot, debug_config, rendered.summary);
+        }
+
+        if (!options.render_wav_path.empty()) {
+            const auto write_wav = write_rendered_wav(options.render_wav_path, rendered, debug_config);
+            if (!write_wav) {
+                std::cerr << "error: " << write_wav.error() << "\n";
+                return 1;
+            }
+
+            std::cout << "wrote wav debug render: " << options.render_wav_path << "\n";
+        }
+
+        return 0;
     }
 
     TerminalDisplay display;

@@ -27,6 +27,7 @@ endif()
 
 add_executable(gaga
     src/audio.cpp
+    src/audio_debug.cpp
     src/diagnostics.cpp
     src/file_watch.cpp
     src/main.cpp
@@ -83,4 +84,20 @@ if(BUILD_TESTING)
     )
 
     add_test(NAME gaga_tests COMMAND gaga_tests)
+
+    add_executable(gaga_audio_debug_tests
+        tests/audio_debug_tests.cpp
+        src/audio_debug.cpp
+        src/note.cpp
+        src/pattern.cpp
+        src/synth.cpp
+        src/transport.cpp
+    )
+
+    target_include_directories(gaga_audio_debug_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party
+    )
+
+    add_test(NAME gaga_audio_debug_tests COMMAND gaga_audio_debug_tests)
 endif()
