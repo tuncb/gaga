@@ -1,0 +1,23 @@
+# Build directories
+/build/
+/build-msvc/
+build-debug
+build-release
+
+# CMake and Ninja generated files
+/CMakeCache.txt
+/CMakeFiles/
+/Testing/
+/cmake_install.cmake
+/build.ninja
+/.ninja_deps
+/.ninja_log
+/CTestTestfile.cmake
+
+# Generated binaries and debug artifacts
+*.exe
+*.obj
+*.pdb
+*.ilk
+*.lib
+*.exp
