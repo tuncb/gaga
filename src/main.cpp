@@ -15,6 +15,7 @@
 #include "pattern.hpp"
 #include "source_text.hpp"
 #include "tokenizer.hpp"
+#include "version.hpp"
 
 namespace gaga {
 
@@ -26,13 +27,41 @@ struct CliOptions {
     int lpb = 4;
     bool loop = false;
     bool trace = false;
+    bool show_help = false;
+    bool show_version = false;
 };
+
+std::string usage_line() {
+    return "usage: gaga <file.gaga> [--loop] [--trace] [--bpm N] [--lpb N]";
+}
+
+void print_help(std::ostream& out) {
+    out << "gaga " << version_string() << "\n";
+    out << usage_line() << "\n\n";
+    out << "options:\n";
+    out << "  --help       show this help message\n";
+    out << "  --version    show version information\n";
+    out << "  --loop       reload the file while playing\n";
+    out << "  --trace      print normalized playback rows\n";
+    out << "  --bpm N      set beats per minute (default: 120)\n";
+    out << "  --lpb N      set lines per beat (default: 4)\n";
+}
 
 tl::expected<CliOptions, std::string> parse_cli(int argc, char** argv) {
     CliOptions options;
 
     for (int index = 1; index < argc; ++index) {
         const std::string argument = argv[index];
+        if (argument == "--help" || argument == "-h") {
+            options.show_help = true;
+            continue;
+        }
+
+        if (argument == "--version") {
+            options.show_version = true;
+            continue;
+        }
+
         if (argument == "--loop") {
             options.loop = true;
             continue;
@@ -72,8 +101,12 @@ tl::expected<CliOptions, std::string> parse_cli(int argc, char** argv) {
         options.path = argument;
     }
 
+    if (options.show_help || options.show_version) {
+        return options;
+    }
+
     if (options.path.empty()) {
-        return tl::unexpected(std::string("usage: gaga <file.gaga> [--loop] [--trace] [--bpm N] [--lpb N]"));
+        return tl::unexpected(usage_line());
     }
 
     return options;
@@ -264,5 +297,16 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    return gaga::run(options.value());
+    const auto& cli = options.value();
+    if (cli.show_help) {
+        gaga::print_help(std::cout);
+        return 0;
+    }
+
+    if (cli.show_version) {
+        std::cout << gaga::version_string() << "\n";
+        return 0;
+    }
+
+    return gaga::run(cli);
 }
