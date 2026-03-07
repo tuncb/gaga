@@ -80,7 +80,10 @@ void audio_callback(ma_device* device, void* output, const void* input, ma_uint3
                 continue;
             }
 
-            auto pending = engine->pending_snapshot.exchange(std::shared_ptr<const PatternSnapshot>{});
+            auto pending = std::atomic_exchange_explicit(
+                &engine->pending_snapshot,
+                std::shared_ptr<const PatternSnapshot>{},
+                std::memory_order_acq_rel);
             if (pending) {
                 engine->active_snapshot = std::move(pending);
             }
@@ -187,7 +190,7 @@ bool pop_runtime_event(RuntimeEventQueue& queue, RuntimeEvent& event) {
 }
 
 void store_pending_snapshot(AudioEngine& engine, std::shared_ptr<const PatternSnapshot> snapshot) {
-    engine.pending_snapshot.store(std::move(snapshot));
+    std::atomic_store_explicit(&engine.pending_snapshot, std::move(snapshot), std::memory_order_release);
 }
 
 }  // namespace gaga
