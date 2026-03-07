@@ -23,15 +23,8 @@ if errorlevel 1 (
     exit /b !RESULT!
 )
 
-set "APP_ARGS="
-:collect_args
-if "%~1"=="" goto run_app
-set "APP_ARGS=!APP_ARGS! "%~1""
-shift
-goto collect_args
-
 :run_app
-"%~dp0%BUILD_DIR%\gaga.exe"!APP_ARGS!
+"%~dp0%BUILD_DIR%\gaga.exe" %1 %2 %3 %4 %5 %6 %7 %8 %9
 set "RESULT=%errorlevel%"
 
 popd
