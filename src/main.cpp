@@ -9,6 +9,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include <tl/expected.hpp>
+
 #include "audio.hpp"
 #include "audio_debug.hpp"
 #include "diagnostics.hpp"
@@ -29,6 +31,7 @@ struct CliOptions {
     std::string render_wav_path;
     int bpm = 120;
     int lpb = 4;
+    SynthType synth_type = SynthType::Sine;
     bool loop = false;
     bool trace = false;
     bool analyze_audio = false;
@@ -37,7 +40,7 @@ struct CliOptions {
 };
 
 std::string usage_line() {
-    return "usage: gaga <file.gaga> [--loop] [--trace] [--analyze-audio] [--render-wav PATH] [--bpm N] [--lpb N]";
+    return "usage: gaga <file.gaga> [--loop] [--trace] [--analyze-audio] [--render-wav PATH] [--bpm N] [--lpb N] [--synth NAME]";
 }
 
 void print_help(std::ostream& out) {
@@ -54,6 +57,7 @@ void print_help(std::ostream& out) {
     out << "               render one offline pass to a wav file and exit\n";
     out << "  --bpm N      set beats per minute (default: 120)\n";
     out << "  --lpb N      set lines per beat (default: 4)\n";
+    out << "  --synth NAME set synth waveform: sine, square, saw, triangle, noise\n";
     out << "\n";
     out << "runtime:\n";
     out << "  Esc          stop playback and exit\n";
@@ -95,6 +99,20 @@ tl::expected<CliOptions, std::string> parse_cli(int argc, char** argv) {
             }
 
             options.render_wav_path = argv[++index];
+            continue;
+        }
+
+        if (argument == "--synth") {
+            if (index + 1 >= argc) {
+                return tl::unexpected(std::string("missing value for ") + argument);
+            }
+
+            const auto synth_type = parse_synth_type(argv[++index]);
+            if (!synth_type) {
+                return tl::unexpected(synth_type.error());
+            }
+
+            options.synth_type = synth_type.value();
             continue;
         }
 
@@ -270,6 +288,7 @@ int run(const CliOptions& options) {
     AudioDebugConfig debug_config;
     debug_config.bpm = options.bpm;
     debug_config.lpb = options.lpb;
+    debug_config.synth_type = options.synth_type;
 
     if (options.analyze_audio || !options.render_wav_path.empty()) {
         const bool capture_samples = !options.render_wav_path.empty();
@@ -303,7 +322,13 @@ int run(const CliOptions& options) {
 
     AudioEngine engine;
     if (const auto init_audio =
-            initialize_audio_engine(engine, initial.value().snapshot, options.bpm, options.lpb, options.loop);
+            initialize_audio_engine(
+                engine,
+                initial.value().snapshot,
+                options.bpm,
+                options.lpb,
+                options.loop,
+                options.synth_type);
         !init_audio) {
         display.shutdown();
         std::cerr << "fatal: " << runtime_error_message(init_audio.error()) << "\n";

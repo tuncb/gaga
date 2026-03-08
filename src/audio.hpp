@@ -66,6 +66,7 @@ struct AudioEngine {
     RuntimeEventQueue runtime_events;
     TransportState transport;
     SynthVoice voice;
+    SynthType synth_type = SynthType::Sine;
     std::atomic<uint64_t> display_state{encode_display_state(0, kNoDisplayedRow)};
     std::atomic<bool> playback_finished{false};
     std::atomic<bool> shutdown_requested{false};
@@ -78,7 +79,8 @@ tl::expected<void, RuntimeErrorKind> initialize_audio_engine(
     std::shared_ptr<const PatternSnapshot> active_snapshot,
     int bpm,
     int lpb,
-    bool loop_enabled);
+    bool loop_enabled,
+    SynthType synth_type);
 
 tl::expected<void, RuntimeErrorKind> start_audio_engine(AudioEngine& engine);
 void stop_audio_engine(AudioEngine& engine);

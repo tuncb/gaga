@@ -22,6 +22,7 @@ void apply_row_event(
     const PatternData& pattern,
     uint32_t row,
     SynthVoice& voice,
+    SynthType synth_type,
     std::span<const float> frequency_hz,
     uint32_t sample_rate);
 

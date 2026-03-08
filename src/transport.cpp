@@ -22,6 +22,7 @@ void apply_row_event(
     const PatternData& pattern,
     uint32_t row,
     SynthVoice& voice,
+    SynthType synth_type,
     std::span<const float> frequency_hz,
     uint32_t sample_rate) {
     if (row >= pattern.row_count()) {
@@ -33,7 +34,7 @@ void apply_row_event(
     case RowOp::Empty:
         break;
     case RowOp::NoteOn:
-        note_on(voice, frequency_hz[pattern.note_index[row]], sample_rate);
+        note_on(voice, frequency_hz[pattern.note_index[row]], sample_rate, synth_type);
         break;
     case RowOp::NoteOff:
         note_off(voice);

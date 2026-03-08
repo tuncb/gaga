@@ -36,6 +36,7 @@ Optional flags:
 ```powershell
 build-msvc\gaga.exe path\to\pattern.gaga --loop
 build-msvc\gaga.exe path\to\pattern.gaga --bpm 120 --lpb 4
+build-msvc\gaga.exe path\to\pattern.gaga --synth square
 build-msvc\gaga.exe path\to\pattern.gaga --trace
 build-msvc\gaga.exe path\to\pattern.gaga --analyze-audio
 build-msvc\gaga.exe path\to\pattern.gaga --render-wav out.wav
@@ -58,3 +59,6 @@ silence, clipping, non-finite samples, and discontinuity counts, then exits
 without opening the audio device. `--render-wav` writes the same one-pass
 render to disk and also exits immediately, which is useful for listening tests
 and future regression comparisons.
+
+Supported synth waveforms for `--synth` are `sine`, `square`, `saw`,
+`triangle`, and `noise`.

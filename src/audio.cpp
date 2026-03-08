@@ -106,6 +106,7 @@ void audio_callback(ma_device* device, void* output, const void* input, ma_uint3
                 engine->active_snapshot->pattern,
                 0,
                 engine->voice,
+                engine->synth_type,
                 engine->active_snapshot->frequency_hz,
                 engine->sample_rate);
             publish_display_state(*engine, *engine->active_snapshot, 0);
@@ -118,6 +119,7 @@ void audio_callback(ma_device* device, void* output, const void* input, ma_uint3
             pattern,
             engine->transport.current_row,
             engine->voice,
+            engine->synth_type,
             engine->active_snapshot->frequency_hz,
             engine->sample_rate);
         publish_display_state(*engine, *engine->active_snapshot, engine->transport.current_row);
@@ -131,8 +133,10 @@ tl::expected<void, RuntimeErrorKind> initialize_audio_engine(
     std::shared_ptr<const PatternSnapshot> active_snapshot,
     int bpm,
     int lpb,
-    bool loop_enabled) {
+    bool loop_enabled,
+    SynthType synth_type) {
     engine.active_snapshot = std::move(active_snapshot);
+    engine.synth_type = synth_type;
     initialize_transport(
         engine.transport,
         compute_frames_per_row(engine.sample_rate, bpm, lpb),
@@ -146,6 +150,7 @@ tl::expected<void, RuntimeErrorKind> initialize_audio_engine(
             engine.active_snapshot->pattern,
             0,
             engine.voice,
+            engine.synth_type,
             engine.active_snapshot->frequency_hz,
             engine.sample_rate);
         publish_display_state(engine, *engine.active_snapshot, 0);

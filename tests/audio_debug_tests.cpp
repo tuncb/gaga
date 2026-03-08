@@ -3,6 +3,7 @@
 #include <iostream>
 
 #include "audio_debug.hpp"
+#include "synth.hpp"
 #include "transport.hpp"
 
 namespace {
@@ -44,6 +45,7 @@ bool test_audio_summary_counts() {
     config.lpb = 4;
     config.sample_rate = 48000;
     config.channels = 2;
+    config.synth_type = gaga::SynthType::Square;
 
     const auto rendered = gaga::render_pattern_audio_debug(snapshot, config, false);
     const auto expected_frames =
@@ -68,10 +70,27 @@ bool test_audio_summary_counts() {
     return true;
 }
 
+bool test_parse_synth_type() {
+    const auto saw = gaga::parse_synth_type("saw");
+    if (!saw || saw.value() != gaga::SynthType::Saw) {
+        std::cerr << "failed to parse valid synth type\n";
+        return false;
+    }
+
+    const auto invalid = gaga::parse_synth_type("supersaw");
+    if (invalid) {
+        std::cerr << "unexpected success for invalid synth type\n";
+        return false;
+    }
+
+    return true;
+}
+
 bool test_wav_export() {
     const auto snapshot = make_snapshot({gaga::RowOp::NoteOn, gaga::RowOp::NoteOff});
 
     gaga::AudioDebugConfig config;
+    config.synth_type = gaga::SynthType::Triangle;
     const auto rendered = gaga::render_pattern_audio_debug(snapshot, config, true);
 
     const auto path = std::filesystem::path("gaga_audio_debug_test.wav");
@@ -106,6 +125,10 @@ bool test_wav_export() {
 
 int main() {
     if (!test_audio_summary_counts()) {
+        return 1;
+    }
+
+    if (!test_parse_synth_type()) {
         return 1;
     }
 

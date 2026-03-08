@@ -99,7 +99,7 @@ RenderedAudio render_pattern_audio_debug(
     TransportState transport;
     SynthVoice voice;
     initialize_transport(transport, frames_per_row, false, true);
-    apply_row_event(pattern, 0, voice, snapshot.frequency_hz, config.sample_rate);
+    apply_row_event(pattern, 0, voice, config.synth_type, snapshot.frequency_hz, config.sample_rate);
     count_row_event(pattern, 0, rendered.summary);
 
     if (capture_samples) {
@@ -142,7 +142,13 @@ RenderedAudio render_pattern_audio_debug(
 
         ++transport.current_row;
         transport.frames_until_row = transport.frames_per_row;
-        apply_row_event(pattern, transport.current_row, voice, snapshot.frequency_hz, config.sample_rate);
+        apply_row_event(
+            pattern,
+            transport.current_row,
+            voice,
+            config.synth_type,
+            snapshot.frequency_hz,
+            config.sample_rate);
         count_row_event(pattern, transport.current_row, rendered.summary);
     }
 

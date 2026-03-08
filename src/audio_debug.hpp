@@ -8,6 +8,7 @@
 #include <tl/expected.hpp>
 
 #include "pattern.hpp"
+#include "synth.hpp"
 
 namespace gaga {
 
@@ -16,6 +17,7 @@ struct AudioDebugConfig {
     uint32_t channels = 2;
     int bpm = 120;
     int lpb = 4;
+    SynthType synth_type = SynthType::Sine;
     float clip_threshold = 0.99f;
     float silence_threshold = 1.0e-4f;
     float discontinuity_threshold = 0.1f;
