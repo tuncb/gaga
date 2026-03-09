@@ -5,8 +5,8 @@
 namespace gaga {
 
 constexpr int VERSION_MAJOR = 0;
-constexpr int VERSION_MINOR = 0;
-constexpr int VERSION_PATCH = 2;
+constexpr int VERSION_MINOR = 1;
+constexpr int VERSION_PATCH = 0;
 constexpr const char* VERSION_LABEL = "alpha";
 
 inline std::string version_string() {
