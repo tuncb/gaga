@@ -9,6 +9,7 @@ namespace {
 
 constexpr float kTwoPi = 6.28318530717958647692f;
 constexpr float kAmplitude = 0.15f;
+constexpr float kMinFrequencyHz = 1.0f;
 
 float phase_fraction(float phase) {
     return phase / kTwoPi;
@@ -35,6 +36,31 @@ float next_noise_sample(SynthVoice& voice) {
 
     const float normalized = static_cast<float>(voice.noise_state) / static_cast<float>(UINT32_MAX);
     return normalized * 2.0f - 1.0f;
+}
+
+float clamped_frequency(float frequency_hz, uint32_t sample_rate) {
+    const float max_frequency_hz = static_cast<float>(sample_rate) * 0.45f;
+    return (std::clamp)(frequency_hz, kMinFrequencyHz, max_frequency_hz);
+}
+
+float effective_frequency_hz(const SynthVoice& voice, uint32_t sample_rate) {
+    const float fine_semitones = static_cast<float>(voice.fine_offset) / 128.0f;
+    const float semitone_offset = static_cast<float>(voice.pitch_offset_semitones) + fine_semitones;
+    const float multiplier = std::pow(2.0f, semitone_offset / 12.0f);
+    return clamped_frequency(voice.base_frequency_hz * multiplier, sample_rate);
+}
+
+void refresh_pitch_state(SynthVoice& voice, uint32_t sample_rate) {
+    if (!voice.active || voice.base_frequency_hz <= 0.0f) {
+        return;
+    }
+
+    voice.phase_step = kTwoPi * effective_frequency_hz(voice, sample_rate) / static_cast<float>(sample_rate);
+}
+
+float gain_scale_from_raw(uint8_t value) {
+    const float signed_offset = static_cast<float>(static_cast<int8_t>(value));
+    return (std::clamp)(1.0f + signed_offset / 64.0f, 0.0f, 4.0f);
 }
 
 }  // namespace
@@ -80,13 +106,29 @@ void note_on(SynthVoice& voice, float frequency_hz, uint32_t sample_rate, SynthT
     voice.active = true;
     voice.type = type;
     voice.phase = 0.0f;
-    voice.phase_step = kTwoPi * frequency_hz / static_cast<float>(sample_rate);
+    voice.base_frequency_hz = frequency_hz;
+    voice.phase_step = 0.0f;
+    refresh_pitch_state(voice, sample_rate);
 }
 
 void note_off(SynthVoice& voice) {
     voice.active = false;
     voice.phase = 0.0f;
     voice.phase_step = 0.0f;
+}
+
+void set_volume_offset(SynthVoice& voice, uint8_t value) {
+    voice.gain_scale = gain_scale_from_raw(value);
+}
+
+void set_pitch_offset(SynthVoice& voice, uint8_t value, uint32_t sample_rate) {
+    voice.pitch_offset_semitones = static_cast<int8_t>(value);
+    refresh_pitch_state(voice, sample_rate);
+}
+
+void set_fine_offset(SynthVoice& voice, uint8_t value, uint32_t sample_rate) {
+    voice.fine_offset = static_cast<int8_t>(value);
+    refresh_pitch_state(voice, sample_rate);
 }
 
 float next_sample(SynthVoice& voice) {
@@ -113,7 +155,7 @@ float next_sample(SynthVoice& voice) {
         break;
     }
 
-    const float sample = waveform * kAmplitude;
+    const float sample = waveform * kAmplitude * voice.gain_scale;
     voice.phase += voice.phase_step;
     if (voice.phase >= kTwoPi) {
         voice.phase -= kTwoPi * std::floor(voice.phase / kTwoPi);

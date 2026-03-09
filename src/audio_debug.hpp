@@ -17,7 +17,7 @@ struct AudioDebugConfig {
     uint32_t channels = 2;
     int bpm = 120;
     int lpb = 4;
-    SynthType synth_type = SynthType::Sine;
+    SynthType synth_type = SynthType::Square;
     float clip_threshold = 0.99f;
     float silence_threshold = 1.0e-4f;
     float discontinuity_threshold = 0.1f;

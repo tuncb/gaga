@@ -11,12 +11,10 @@
 namespace gaga {
 
 enum class TokenKind : uint8_t {
-    NoteLetter,
-    Sharp,
-    Dash,
-    Digit,
-    Off,
+    Note,
     TripleDash,
+    Word,
+    HexByte,
     Comment,
     Newline,
     EndOfFile,

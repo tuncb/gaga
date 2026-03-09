@@ -1,0 +1,10 @@
+# Volume and pitch offsets applied on row boundaries.
+# 00 is the neutral value for all three commands.
+# PIT uses signed semitone offsets, and FIN uses signed fine pitch offsets.
+
+C-4 VOL 20
+--- PIT 01
+--- FIN 40
+--- VOL E0
+--- PIT FF FIN C0
+OFF

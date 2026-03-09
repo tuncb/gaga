@@ -1,18 +1,25 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <cmath>
 
 #include "audio_debug.hpp"
+#include "note.hpp"
+#include "pattern.hpp"
 #include "synth.hpp"
 #include "transport.hpp"
 
 namespace {
+
+constexpr float kTwoPi = 6.28318530717958647692f;
 
 gaga::PatternSnapshot make_snapshot(std::initializer_list<gaga::RowOp> ops) {
     gaga::PatternData pattern;
     pattern.op.assign(ops.begin(), ops.end());
     pattern.note_index.resize(pattern.op.size(), 0);
     pattern.source_line.resize(pattern.op.size(), 0);
+    pattern.fx_start.resize(pattern.op.size(), 0);
+    pattern.fx_count.resize(pattern.op.size(), 0);
 
     std::vector<std::string> source_lines;
     source_lines.reserve(pattern.op.size());
@@ -35,6 +42,10 @@ gaga::PatternSnapshot make_snapshot(std::initializer_list<gaga::RowOp> ops) {
     }
 
     return gaga::build_snapshot(std::move(pattern), std::move(source_lines), 0, 0, 1);
+}
+
+bool approximately_equal(float left, float right, float tolerance = 1.0e-4f) {
+    return std::abs(left - right) <= tolerance;
 }
 
 bool test_audio_summary_counts() {
@@ -64,6 +75,59 @@ bool test_audio_summary_counts() {
 
     if (rendered.summary.peak_abs <= 0.0f || rendered.summary.non_finite_frames != 0) {
         std::cerr << "unexpected signal metrics\n";
+        return false;
+    }
+
+    return true;
+}
+
+bool test_apply_row_fx_updates_voice_state() {
+    gaga::PatternData pattern;
+    pattern.op = {gaga::RowOp::NoteOn, gaga::RowOp::Empty, gaga::RowOp::NoteOff};
+    pattern.note_index = {48, 0, 0};
+    pattern.source_line = {1, 2, 3};
+    pattern.fx_start = {0, 1, 3};
+    pattern.fx_count = {1, 2, 0};
+    pattern.fx_command = {
+        gaga::FxCommand::Volume,
+        gaga::FxCommand::Pitch,
+        gaga::FxCommand::Fine,
+    };
+    pattern.fx_value = {0x20, 0x01, 0x40};
+
+    std::vector<std::string> source_lines{
+        "C-4 VOL 20",
+        "--- PIT 01 FIN 40",
+        "OFF",
+    };
+
+    const auto snapshot = gaga::build_snapshot(std::move(pattern), std::move(source_lines), 0, 0, 1);
+
+    gaga::SynthVoice voice;
+    gaga::apply_row_event(snapshot.pattern, 0, voice, gaga::SynthType::Sine, snapshot.frequency_hz, 48000);
+    if (!voice.active) {
+        std::cerr << "expected row 0 to activate the voice\n";
+        return false;
+    }
+
+    if (!approximately_equal(voice.gain_scale, 1.5f)) {
+        std::cerr << "unexpected volume gain scale\n";
+        return false;
+    }
+
+    gaga::apply_row_event(snapshot.pattern, 1, voice, gaga::SynthType::Sine, snapshot.frequency_hz, 48000);
+    const float expected_frequency =
+        gaga::note_index_to_frequency(48) * std::pow(2.0f, 1.5f / 12.0f);
+    const float expected_phase_step = kTwoPi * expected_frequency / 48000.0f;
+
+    if (!approximately_equal(voice.phase_step, expected_phase_step)) {
+        std::cerr << "unexpected pitch phase step after PIT/FIN\n";
+        return false;
+    }
+
+    gaga::apply_row_event(snapshot.pattern, 2, voice, gaga::SynthType::Sine, snapshot.frequency_hz, 48000);
+    if (voice.active) {
+        std::cerr << "expected OFF row to deactivate the voice\n";
         return false;
     }
 
@@ -129,6 +193,10 @@ int main() {
     }
 
     if (!test_parse_synth_type()) {
+        return 1;
+    }
+
+    if (!test_apply_row_fx_updates_voice_state()) {
         return 1;
     }
 

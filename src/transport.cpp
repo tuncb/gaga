@@ -40,6 +40,20 @@ void apply_row_event(
         note_off(voice);
         break;
     }
+
+    for (size_t fx_index = pattern.row_fx_begin(row); fx_index < pattern.row_fx_end(row); ++fx_index) {
+        switch (pattern.fx_command[fx_index]) {
+        case FxCommand::Volume:
+            set_volume_offset(voice, pattern.fx_value[fx_index]);
+            break;
+        case FxCommand::Pitch:
+            set_pitch_offset(voice, pattern.fx_value[fx_index], sample_rate);
+            break;
+        case FxCommand::Fine:
+            set_fine_offset(voice, pattern.fx_value[fx_index], sample_rate);
+            break;
+        }
+    }
 }
 
 }  // namespace gaga

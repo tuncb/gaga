@@ -24,8 +24,27 @@ bool is_note_letter(char value) {
     return value >= 'A' && value <= 'G';
 }
 
+bool is_uppercase_letter(char value) {
+    return value >= 'A' && value <= 'Z';
+}
+
+bool is_hex_digit(char value) {
+    return (value >= '0' && value <= '9') || (value >= 'A' && value <= 'F');
+}
+
 bool is_token_boundary(char value) {
     return value == '\0' || value == ' ' || value == '\t' || value == '\r' || value == '\n' || value == '#';
+}
+
+void push_invalid_token(
+    TokenizationResult& result,
+    uint32_t offset,
+    uint16_t length,
+    uint32_t line,
+    uint16_t column,
+    DiagnosticKind diagnostic_kind) {
+    push_token(result.stream, TokenKind::Invalid, offset, length, line, column);
+    result.diagnostics.push_back(Diagnostic{diagnostic_kind, line, column, offset, length});
 }
 
 }  // namespace
@@ -65,19 +84,21 @@ TokenizationResult tokenize(const SourceText& source) {
         const uint32_t token_offset = static_cast<uint32_t>(index);
         const uint16_t token_column = column;
 
-        if (current == '#') {
-            const bool sharp_for_note =
-                !result.stream.kind.empty() &&
-                result.stream.kind.back() == TokenKind::NoteLetter &&
-                static_cast<size_t>(result.stream.offset.back() + result.stream.length.back()) == index;
-
-            if (sharp_for_note) {
-                push_token(result.stream, TokenKind::Sharp, token_offset, 1, line, token_column);
-                ++index;
-                ++column;
+        if (is_note_letter(current) && index + 2 < source.bytes.size()) {
+            const char accidental = source.bytes[index + 1];
+            const char octave = source.bytes[index + 2];
+            const char boundary = index + 3 < source.bytes.size() ? source.bytes[index + 3] : '\0';
+            if ((accidental == '#' || accidental == '-') &&
+                std::isdigit(static_cast<unsigned char>(octave)) != 0 &&
+                is_token_boundary(boundary)) {
+                push_token(result.stream, TokenKind::Note, token_offset, 3, line, token_column);
+                index += 3;
+                column += 3;
                 continue;
             }
+        }
 
+        if (current == '#') {
             size_t comment_end = index + 1;
             while (comment_end < source.bytes.size()) {
                 const char comment_char = source.bytes[comment_end];
@@ -105,41 +126,75 @@ TokenizationResult tokenize(const SourceText& source) {
             }
         }
 
-        if (current == 'O' && index + 2 < source.bytes.size() && source.bytes[index + 1] == 'F' &&
-            source.bytes[index + 2] == 'F') {
-            const char boundary = index + 3 < source.bytes.size() ? source.bytes[index + 3] : '\0';
+        if (is_hex_digit(current) && index + 1 < source.bytes.size() && is_hex_digit(source.bytes[index + 1])) {
+            const char boundary = index + 2 < source.bytes.size() ? source.bytes[index + 2] : '\0';
             if (is_token_boundary(boundary)) {
-                push_token(result.stream, TokenKind::Off, token_offset, 3, line, token_column);
-                index += 3;
-                column += 3;
+                push_token(result.stream, TokenKind::HexByte, token_offset, 2, line, token_column);
+                index += 2;
+                column += 2;
                 continue;
             }
         }
 
-        if (is_note_letter(current)) {
-            push_token(result.stream, TokenKind::NoteLetter, token_offset, 1, line, token_column);
-            ++index;
-            ++column;
-            continue;
-        }
+        if (is_uppercase_letter(current)) {
+            size_t word_end = index + 1;
+            while (word_end < source.bytes.size() && is_uppercase_letter(source.bytes[word_end])) {
+                ++word_end;
+            }
 
-        if (current == '-') {
-            push_token(result.stream, TokenKind::Dash, token_offset, 1, line, token_column);
-            ++index;
-            ++column;
+            const char boundary = word_end < source.bytes.size() ? source.bytes[word_end] : '\0';
+            const auto token_length = static_cast<uint16_t>(word_end - index);
+            if (is_token_boundary(boundary)) {
+                push_token(result.stream, TokenKind::Word, token_offset, token_length, line, token_column);
+            } else {
+                size_t invalid_end = word_end;
+                while (invalid_end < source.bytes.size() && !is_token_boundary(source.bytes[invalid_end])) {
+                    ++invalid_end;
+                }
+                const auto invalid_length = static_cast<uint16_t>(invalid_end - index);
+                push_invalid_token(
+                    result,
+                    token_offset,
+                    invalid_length,
+                    line,
+                    token_column,
+                    DiagnosticKind::InvalidToken);
+                column += invalid_length;
+                index = invalid_end;
+                continue;
+            }
+
+            index = word_end;
+            column += token_length;
             continue;
         }
 
         if (std::isdigit(static_cast<unsigned char>(current)) != 0) {
-            push_token(result.stream, TokenKind::Digit, token_offset, 1, line, token_column);
-            ++index;
-            ++column;
+            size_t invalid_end = index + 1;
+            while (invalid_end < source.bytes.size() && !is_token_boundary(source.bytes[invalid_end])) {
+                ++invalid_end;
+            }
+
+            const auto invalid_length = static_cast<uint16_t>(invalid_end - index);
+            push_invalid_token(
+                result,
+                token_offset,
+                invalid_length,
+                line,
+                token_column,
+                DiagnosticKind::InvalidToken);
+            column += invalid_length;
+            index = invalid_end;
             continue;
         }
 
-        push_token(result.stream, TokenKind::Invalid, token_offset, 1, line, token_column);
-        result.diagnostics.push_back(
-            Diagnostic{DiagnosticKind::InvalidCharacter, line, token_column, token_offset, 1});
+        push_invalid_token(
+            result,
+            token_offset,
+            1,
+            line,
+            token_column,
+            DiagnosticKind::InvalidCharacter);
         ++index;
         ++column;
     }

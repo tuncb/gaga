@@ -31,7 +31,7 @@ struct CliOptions {
     std::string render_wav_path;
     int bpm = 120;
     int lpb = 4;
-    SynthType synth_type = SynthType::Sine;
+    SynthType synth_type = SynthType::Square;
     bool loop = false;
     bool trace = false;
     bool analyze_audio = false;
@@ -255,17 +255,29 @@ std::string runtime_error_message(RuntimeErrorKind kind) {
 
 void print_trace_rows(std::ostream& out, const PatternSnapshot& snapshot) {
     for (size_t row = 0; row < snapshot.pattern.row_count(); ++row) {
+        const std::string fx = row_fx_to_string(snapshot.pattern, row);
         switch (snapshot.pattern.op[row]) {
         case RowOp::Empty:
+            if (!fx.empty()) {
+                out << "row " << std::setw(3) << std::setfill('0') << row << ": fx " << fx << "\n";
+            }
             break;
         case RowOp::NoteOff:
-            out << "row " << std::setw(3) << std::setfill('0') << row << ": note off\n";
+            out << "row " << std::setw(3) << std::setfill('0') << row << ": note off";
+            if (!fx.empty()) {
+                out << ", fx " << fx;
+            }
+            out << "\n";
             break;
         case RowOp::NoteOn:
             out << "row " << std::setw(3) << std::setfill('0') << row << ": note on "
-                << row_to_string(snapshot.pattern.op[row], snapshot.pattern.note_index[row]) << " ("
+                << row_event_to_string(snapshot.pattern.op[row], snapshot.pattern.note_index[row]) << " ("
                 << std::fixed << std::setprecision(2)
-                << snapshot.frequency_hz[snapshot.pattern.note_index[row]] << " Hz)\n";
+                << snapshot.frequency_hz[snapshot.pattern.note_index[row]] << " Hz)";
+            if (!fx.empty()) {
+                out << ", fx " << fx;
+            }
+            out << "\n";
             break;
         }
     }

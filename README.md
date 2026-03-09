@@ -62,3 +62,27 @@ and future regression comparisons.
 
 Supported synth waveforms for `--synth` are `sine`, `square`, `saw`,
 `triangle`, and `noise`.
+
+## Pattern Syntax
+
+Each row starts with one of:
+
+- a note like `C-4` or `F#3`
+- `OFF`
+- `---`
+
+Rows can now also carry zero or more FX pairs after the row event:
+
+```text
+C-4 VOL 20
+--- PIT 01 FIN 40
+OFF VOL E0
+```
+
+Supported row FX today:
+
+- `VOL XX`: signed volume offset where `00` is neutral, positive values get louder, and values like `E0` reduce gain
+- `PIT XX`: signed semitone offset where `01` is +1 semitone and `FF` is -1 semitone
+- `FIN XX`: signed fine pitch offset where the byte maps to about +/-1 semitone across the full range
+
+FX values use two uppercase hex digits.

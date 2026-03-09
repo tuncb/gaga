@@ -13,12 +13,24 @@ enum class RowOp : uint8_t {
     NoteOff
 };
 
+enum class FxCommand : uint8_t {
+    Volume,
+    Pitch,
+    Fine
+};
+
 struct PatternData {
     std::vector<RowOp> op;
     std::vector<uint8_t> note_index;
     std::vector<uint32_t> source_line;
+    std::vector<uint32_t> fx_start;
+    std::vector<uint16_t> fx_count;
+    std::vector<FxCommand> fx_command;
+    std::vector<uint8_t> fx_value;
 
     [[nodiscard]] size_t row_count() const { return op.size(); }
+    [[nodiscard]] size_t row_fx_begin(size_t row) const { return fx_start[row]; }
+    [[nodiscard]] size_t row_fx_end(size_t row) const { return fx_start[row] + fx_count[row]; }
 };
 
 struct PatternSnapshot {
@@ -30,7 +42,11 @@ struct PatternSnapshot {
     uint32_t display_generation = 0;
 };
 
-std::string row_to_string(RowOp op, uint8_t note_index);
+std::string row_event_to_string(RowOp op, uint8_t note_index);
+std::string fx_command_to_string(FxCommand command);
+std::string fx_to_string(FxCommand command, uint8_t value);
+std::string row_fx_to_string(const PatternData& pattern, size_t row);
+std::string row_to_string(const PatternData& pattern, size_t row);
 void print_normalized_rows(std::ostream& out, const PatternData& pattern);
 PatternSnapshot build_snapshot(
     PatternData pattern,

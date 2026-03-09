@@ -1,0 +1,24 @@
+# Subtle detune motion with FIN while notes sustain.
+# Small signed values create a chorus-like shimmer.
+
+C-5 FIN F8
+--- FIN 00
+--- FIN 08
+--- FIN 10
+E-5 FIN F0
+--- FIN F8
+--- FIN 00
+--- FIN 08
+G-5 FIN FC
+--- FIN 04
+--- FIN 0C
+--- FIN 14
+E-5 FIN 08
+--- FIN 00
+--- FIN F8
+--- FIN F0
+C-5 FIN 00
+--- FIN 08
+--- FIN 00
+--- FIN F8
+OFF FIN 00

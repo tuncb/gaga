@@ -66,7 +66,7 @@ struct AudioEngine {
     RuntimeEventQueue runtime_events;
     TransportState transport;
     SynthVoice voice;
-    SynthType synth_type = SynthType::Sine;
+    SynthType synth_type = SynthType::Square;
     std::atomic<uint64_t> display_state{encode_display_state(0, kNoDisplayedRow)};
     std::atomic<bool> playback_finished{false};
     std::atomic<bool> shutdown_requested{false};
