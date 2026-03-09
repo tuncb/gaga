@@ -64,6 +64,15 @@ tl::expected<FxCommand, DiagnosticKind> parse_fx_command(
     if (text == "FIN") {
         return FxCommand::Fine;
     }
+    if (text == "TSP") {
+        return FxCommand::Transpose;
+    }
+    if (text == "TPO") {
+        return FxCommand::Tempo;
+    }
+    if (text == "VMV") {
+        return FxCommand::MasterVolume;
+    }
 
     return tl::unexpected(DiagnosticKind::InvalidToken);
 }

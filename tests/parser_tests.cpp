@@ -37,9 +37,9 @@ bool test_fx_rows_parse() {
     gaga::SourceText source{
         "memory",
         std::vector<char>{
-            'C', '-', '4', ' ', 'V', 'O', 'L', ' ', '2', '0', ' ', 'P', 'I', 'T', ' ', '0', '1', '\n',
-            '-', '-', '-', ' ', 'F', 'I', 'N', ' ', 'F', '0', '\n',
-            'O', 'F', 'F', ' ', 'V', 'O', 'L', ' ', 'E', '0', ' ', '#', ' ', 'x',
+            'C', '-', '4', ' ', 'V', 'O', 'L', ' ', '2', '0', ' ', 'P', 'I', 'T', ' ', '0', '1', ' ', 'T', 'S', 'P', ' ', 'F', 'F', '\n',
+            '-', '-', '-', ' ', 'F', 'I', 'N', ' ', 'F', '0', ' ', 'T', 'P', 'O', ' ', '9', '0', '\n',
+            'O', 'F', 'F', ' ', 'V', 'M', 'V', ' ', 'C', '0', ' ', '#', ' ', 'x',
         }};
 
     const auto tokenization = gaga::tokenize(source);
@@ -60,8 +60,8 @@ bool test_fx_rows_parse() {
     }
 
     if (parse.pattern.fx_count.size() != 3 ||
-        parse.pattern.fx_count[0] != 2 ||
-        parse.pattern.fx_count[1] != 1 ||
+        parse.pattern.fx_count[0] != 3 ||
+        parse.pattern.fx_count[1] != 2 ||
         parse.pattern.fx_count[2] != 1) {
         std::cerr << "unexpected fx counts\n";
         return false;
@@ -71,10 +71,14 @@ bool test_fx_rows_parse() {
            parse.pattern.fx_value[0] == 0x20 &&
            parse.pattern.fx_command[1] == gaga::FxCommand::Pitch &&
            parse.pattern.fx_value[1] == 0x01 &&
-           parse.pattern.fx_command[2] == gaga::FxCommand::Fine &&
-           parse.pattern.fx_value[2] == 0xF0 &&
-           parse.pattern.fx_command[3] == gaga::FxCommand::Volume &&
-           parse.pattern.fx_value[3] == 0xE0;
+           parse.pattern.fx_command[2] == gaga::FxCommand::Transpose &&
+           parse.pattern.fx_value[2] == 0xFF &&
+           parse.pattern.fx_command[3] == gaga::FxCommand::Fine &&
+           parse.pattern.fx_value[3] == 0xF0 &&
+           parse.pattern.fx_command[4] == gaga::FxCommand::Tempo &&
+           parse.pattern.fx_value[4] == 0x90 &&
+           parse.pattern.fx_command[5] == gaga::FxCommand::MasterVolume &&
+           parse.pattern.fx_value[5] == 0xC0;
 }
 
 bool test_invalid_note_shape() {

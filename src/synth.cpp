@@ -45,7 +45,10 @@ float clamped_frequency(float frequency_hz, uint32_t sample_rate) {
 
 float effective_frequency_hz(const SynthVoice& voice, uint32_t sample_rate) {
     const float fine_semitones = static_cast<float>(voice.fine_offset) / 128.0f;
-    const float semitone_offset = static_cast<float>(voice.pitch_offset_semitones) + fine_semitones;
+    const float semitone_offset =
+        static_cast<float>(voice.transpose_semitones) +
+        static_cast<float>(voice.pitch_offset_semitones) +
+        fine_semitones;
     const float multiplier = std::pow(2.0f, semitone_offset / 12.0f);
     return clamped_frequency(voice.base_frequency_hz * multiplier, sample_rate);
 }
@@ -128,6 +131,11 @@ void set_pitch_offset(SynthVoice& voice, uint8_t value, uint32_t sample_rate) {
 
 void set_fine_offset(SynthVoice& voice, uint8_t value, uint32_t sample_rate) {
     voice.fine_offset = static_cast<int8_t>(value);
+    refresh_pitch_state(voice, sample_rate);
+}
+
+void set_transpose_offset(SynthVoice& voice, uint8_t value, uint32_t sample_rate) {
+    voice.transpose_semitones = static_cast<int8_t>(value);
     refresh_pitch_state(voice, sample_rate);
 }
 

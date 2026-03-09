@@ -1,0 +1,28 @@
+# The same pulse speeds up and slows down with TPO.
+# TPO values are BPM in hex: 60=96, 78=120, 90=144.
+
+C-3 TPO 60
+---
+G-3
+---
+C-4
+---
+G-3
+---
+C-3 TPO 78
+---
+G-3
+---
+C-4
+---
+G-3
+---
+C-3 TPO 90
+---
+G-3
+---
+C-4
+---
+G-3
+---
+OFF TPO 78

@@ -76,6 +76,7 @@ Rows can now also carry zero or more FX pairs after the row event:
 ```text
 C-4 VOL 20
 --- PIT 01 FIN 40
+--- TSP FF TPO 90 VMV 80
 OFF VOL E0
 ```
 
@@ -84,5 +85,8 @@ Supported row FX today:
 - `VOL XX`: signed volume offset where `00` is neutral, positive values get louder, and values like `E0` reduce gain
 - `PIT XX`: signed semitone offset where `01` is +1 semitone and `FF` is -1 semitone
 - `FIN XX`: signed fine pitch offset where the byte maps to about +/-1 semitone across the full range
+- `TSP XX`: signed global transpose in semitones, applied to the current and following notes
+- `TPO XX`: absolute tempo in BPM, encoded as a hex byte from `01` to `FF`
+- `VMV XX`: absolute master volume from `00` (mute) to `FF` (full scale)
 
 FX values use two uppercase hex digits.

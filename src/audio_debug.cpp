@@ -88,7 +88,6 @@ RenderedAudio render_pattern_audio_debug(
     RenderedAudio rendered;
 
     const uint32_t channels = (std::max)(config.channels, 1U);
-    const uint32_t frames_per_row = compute_frames_per_row(config.sample_rate, config.bpm, config.lpb);
     const auto& pattern = snapshot.pattern;
     if (pattern.row_count() == 0) {
         return rendered;
@@ -98,13 +97,25 @@ RenderedAudio render_pattern_audio_debug(
 
     TransportState transport;
     SynthVoice voice;
-    initialize_transport(transport, frames_per_row, false, true);
-    apply_row_event(pattern, 0, voice, config.synth_type, snapshot.frequency_hz, config.sample_rate);
+    float master_gain = 1.0f;
+    initialize_transport(transport, config.sample_rate, config.bpm, config.lpb, false, true);
+    apply_row_event(
+        pattern,
+        0,
+        transport,
+        voice,
+        master_gain,
+        config.synth_type,
+        snapshot.frequency_hz,
+        config.sample_rate);
+    transport.frames_until_row = transport.frames_per_row;
     count_row_event(pattern, 0, rendered.summary);
 
     if (capture_samples) {
         rendered.interleaved_samples.reserve(
-            static_cast<size_t>(pattern.row_count()) * frames_per_row * channels);
+            static_cast<size_t>(pattern.row_count()) *
+            compute_frames_per_row(config.sample_rate, config.bpm, config.lpb) *
+            channels);
     }
 
     double sum = 0.0;
@@ -114,7 +125,7 @@ RenderedAudio render_pattern_audio_debug(
 
     while (!transport.finished) {
         for (uint32_t frame = 0; frame < transport.frames_until_row; ++frame) {
-            const float sample = next_sample(voice);
+            const float sample = next_sample(voice) * master_gain;
             accumulate_frame(
                 sample,
                 has_previous_sample,
@@ -141,14 +152,16 @@ RenderedAudio render_pattern_audio_debug(
         }
 
         ++transport.current_row;
-        transport.frames_until_row = transport.frames_per_row;
         apply_row_event(
             pattern,
             transport.current_row,
+            transport,
             voice,
+            master_gain,
             config.synth_type,
             snapshot.frequency_hz,
             config.sample_rate);
+        transport.frames_until_row = transport.frames_per_row;
         count_row_event(pattern, transport.current_row, rendered.summary);
     }
 

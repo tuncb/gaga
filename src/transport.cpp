@@ -10,18 +10,34 @@ uint32_t compute_frames_per_row(uint32_t sample_rate, int bpm, int lpb) {
     return std::max<uint32_t>(1, static_cast<uint32_t>(std::llround(seconds_per_row * sample_rate)));
 }
 
-void initialize_transport(TransportState& transport, uint32_t frames_per_row, bool loop_enabled, bool has_rows) {
+void initialize_transport(
+    TransportState& transport,
+    uint32_t sample_rate,
+    int bpm,
+    int lpb,
+    bool loop_enabled,
+    bool has_rows) {
     transport.current_row = 0;
-    transport.frames_until_row = frames_per_row;
-    transport.frames_per_row = frames_per_row;
+    transport.sample_rate = sample_rate;
+    transport.bpm = bpm;
+    transport.lpb = lpb;
+    transport.frames_per_row = compute_frames_per_row(sample_rate, bpm, lpb);
+    transport.frames_until_row = transport.frames_per_row;
     transport.loop_enabled = loop_enabled;
     transport.finished = !has_rows;
+}
+
+void set_transport_tempo(TransportState& transport, int bpm) {
+    transport.bpm = (std::max)(1, bpm);
+    transport.frames_per_row = compute_frames_per_row(transport.sample_rate, transport.bpm, transport.lpb);
 }
 
 void apply_row_event(
     const PatternData& pattern,
     uint32_t row,
+    TransportState& transport,
     SynthVoice& voice,
+    float& master_gain,
     SynthType synth_type,
     std::span<const float> frequency_hz,
     uint32_t sample_rate) {
@@ -51,6 +67,15 @@ void apply_row_event(
             break;
         case FxCommand::Fine:
             set_fine_offset(voice, pattern.fx_value[fx_index], sample_rate);
+            break;
+        case FxCommand::Transpose:
+            set_transpose_offset(voice, pattern.fx_value[fx_index], sample_rate);
+            break;
+        case FxCommand::Tempo:
+            set_transport_tempo(transport, pattern.fx_value[fx_index]);
+            break;
+        case FxCommand::MasterVolume:
+            master_gain = static_cast<float>(pattern.fx_value[fx_index]) / 255.0f;
             break;
         }
     }

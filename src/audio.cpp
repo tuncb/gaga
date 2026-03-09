@@ -31,9 +31,9 @@ void publish_display_state(AudioEngine& engine, const PatternSnapshot& snapshot,
         std::memory_order_release);
 }
 
-void render_frames(float* output, uint32_t frames, uint32_t channels, SynthVoice& voice) {
+void render_frames(float* output, uint32_t frames, uint32_t channels, SynthVoice& voice, float master_gain) {
     for (uint32_t frame = 0; frame < frames; ++frame) {
-        const float sample = next_sample(voice);
+        const float sample = next_sample(voice) * master_gain;
         for (uint32_t channel = 0; channel < channels; ++channel) {
             output[frame * channels + channel] = sample;
         }
@@ -70,7 +70,7 @@ void audio_callback(ma_device* device, void* output, const void* input, ma_uint3
         }
 
         const uint32_t chunk = (std::min)(remaining_frames, engine->transport.frames_until_row);
-        render_frames(out, chunk, device->playback.channels, engine->voice);
+        render_frames(out, chunk, device->playback.channels, engine->voice, engine->master_gain);
         out += static_cast<size_t>(chunk) * device->playback.channels;
         remaining_frames -= chunk;
         engine->transport.frames_until_row -= chunk;
@@ -95,7 +95,6 @@ void audio_callback(ma_device* device, void* output, const void* input, ma_uint3
             }
 
             engine->transport.current_row = 0;
-            engine->transport.frames_until_row = engine->transport.frames_per_row;
             if (engine->active_snapshot->pattern.row_count() == 0) {
                 publish_display_state(*engine, *engine->active_snapshot, kNoDisplayedRow);
                 note_off(engine->voice);
@@ -105,23 +104,28 @@ void audio_callback(ma_device* device, void* output, const void* input, ma_uint3
             apply_row_event(
                 engine->active_snapshot->pattern,
                 0,
+                engine->transport,
                 engine->voice,
+                engine->master_gain,
                 engine->synth_type,
                 engine->active_snapshot->frequency_hz,
                 engine->sample_rate);
+            engine->transport.frames_until_row = engine->transport.frames_per_row;
             publish_display_state(*engine, *engine->active_snapshot, 0);
             continue;
         }
 
         ++engine->transport.current_row;
-        engine->transport.frames_until_row = engine->transport.frames_per_row;
         apply_row_event(
             pattern,
             engine->transport.current_row,
+            engine->transport,
             engine->voice,
+            engine->master_gain,
             engine->synth_type,
             engine->active_snapshot->frequency_hz,
             engine->sample_rate);
+        engine->transport.frames_until_row = engine->transport.frames_per_row;
         publish_display_state(*engine, *engine->active_snapshot, engine->transport.current_row);
     }
 }
@@ -136,10 +140,13 @@ tl::expected<void, RuntimeErrorKind> initialize_audio_engine(
     bool loop_enabled,
     SynthType synth_type) {
     engine.active_snapshot = std::move(active_snapshot);
+    engine.master_gain = 1.0f;
     engine.synth_type = synth_type;
     initialize_transport(
         engine.transport,
-        compute_frames_per_row(engine.sample_rate, bpm, lpb),
+        engine.sample_rate,
+        bpm,
+        lpb,
         loop_enabled,
         engine.active_snapshot != nullptr && engine.active_snapshot->pattern.row_count() > 0);
 
@@ -149,10 +156,13 @@ tl::expected<void, RuntimeErrorKind> initialize_audio_engine(
         apply_row_event(
             engine.active_snapshot->pattern,
             0,
+            engine.transport,
             engine.voice,
+            engine.master_gain,
             engine.synth_type,
             engine.active_snapshot->frequency_hz,
             engine.sample_rate);
+        engine.transport.frames_until_row = engine.transport.frames_per_row;
         publish_display_state(engine, *engine.active_snapshot, 0);
     } else {
         publish_display_state(engine, *engine.active_snapshot, kNoDisplayedRow);

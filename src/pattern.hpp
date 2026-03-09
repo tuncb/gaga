@@ -16,7 +16,10 @@ enum class RowOp : uint8_t {
 enum class FxCommand : uint8_t {
     Volume,
     Pitch,
-    Fine
+    Fine,
+    Transpose,
+    Tempo,
+    MasterVolume
 };
 
 struct PatternData {

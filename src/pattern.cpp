@@ -38,6 +38,12 @@ std::string fx_command_to_string(FxCommand command) {
         return "PIT";
     case FxCommand::Fine:
         return "FIN";
+    case FxCommand::Transpose:
+        return "TSP";
+    case FxCommand::Tempo:
+        return "TPO";
+    case FxCommand::MasterVolume:
+        return "VMV";
     }
 
     return "???";
