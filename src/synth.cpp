@@ -10,6 +10,9 @@ namespace {
 constexpr float kTwoPi = 6.28318530717958647692f;
 constexpr float kAmplitude = 0.15f;
 constexpr float kMinFrequencyHz = 1.0f;
+constexpr float kNoiseFilterMinFrequencyHz = 40.0f;
+constexpr float kNoiseFilterMaxSampleRateFraction = 0.2f;
+constexpr float kNoiseFilterQ = 3.5f;
 constexpr SynthType kInstrumentBank[] = {
     SynthType::Sine,
     SynthType::Square,
@@ -50,6 +53,11 @@ float clamped_frequency(float frequency_hz, uint32_t sample_rate) {
     return (std::clamp)(frequency_hz, kMinFrequencyHz, max_frequency_hz);
 }
 
+float clamped_noise_filter_frequency(float frequency_hz, uint32_t sample_rate) {
+    const float max_frequency_hz = static_cast<float>(sample_rate) * kNoiseFilterMaxSampleRateFraction;
+    return (std::clamp)(frequency_hz, kNoiseFilterMinFrequencyHz, max_frequency_hz);
+}
+
 float effective_frequency_hz(const SynthVoice& voice, uint32_t sample_rate) {
     const float fine_semitones = static_cast<float>(voice.fine_offset) / 128.0f;
     const float semitone_offset =
@@ -60,12 +68,40 @@ float effective_frequency_hz(const SynthVoice& voice, uint32_t sample_rate) {
     return clamped_frequency(voice.base_frequency_hz * multiplier, sample_rate);
 }
 
+void reset_noise_filter_state(SynthVoice& voice) {
+    voice.noise_filter.x1 = 0.0f;
+    voice.noise_filter.x2 = 0.0f;
+    voice.noise_filter.y1 = 0.0f;
+    voice.noise_filter.y2 = 0.0f;
+}
+
+void refresh_noise_filter_state(SynthVoice& voice, uint32_t sample_rate) {
+    if (sample_rate == 0) {
+        return;
+    }
+
+    const float center_frequency_hz =
+        clamped_noise_filter_frequency(effective_frequency_hz(voice, sample_rate), sample_rate);
+    const float omega = kTwoPi * center_frequency_hz / static_cast<float>(sample_rate);
+    const float sine = std::sin(omega);
+    const float cosine = std::cos(omega);
+    const float alpha = sine / (2.0f * kNoiseFilterQ);
+    const float a0 = 1.0f + alpha;
+
+    voice.noise_filter.b0 = alpha / a0;
+    voice.noise_filter.b1 = 0.0f;
+    voice.noise_filter.b2 = -alpha / a0;
+    voice.noise_filter.a1 = (-2.0f * cosine) / a0;
+    voice.noise_filter.a2 = (1.0f - alpha) / a0;
+}
+
 void refresh_pitch_state(SynthVoice& voice, uint32_t sample_rate) {
     if (!voice.active || voice.base_frequency_hz <= 0.0f) {
         return;
     }
 
     voice.phase_step = kTwoPi * effective_frequency_hz(voice, sample_rate) / static_cast<float>(sample_rate);
+    refresh_noise_filter_state(voice, sample_rate);
 }
 
 float gain_scale_from_raw(uint8_t value) {
@@ -78,6 +114,22 @@ SynthType synth_type_from_instrument(uint8_t instrument, SynthType fallback_type
         return kInstrumentBank[instrument];
     }
     return fallback_type;
+}
+
+float next_filtered_noise_sample(SynthVoice& voice) {
+    const float input = next_noise_sample(voice);
+    const float output =
+        voice.noise_filter.b0 * input +
+        voice.noise_filter.b1 * voice.noise_filter.x1 +
+        voice.noise_filter.b2 * voice.noise_filter.x2 -
+        voice.noise_filter.a1 * voice.noise_filter.y1 -
+        voice.noise_filter.a2 * voice.noise_filter.y2;
+
+    voice.noise_filter.x2 = voice.noise_filter.x1;
+    voice.noise_filter.x1 = input;
+    voice.noise_filter.y2 = voice.noise_filter.y1;
+    voice.noise_filter.y1 = std::isfinite(output) ? output : 0.0f;
+    return voice.noise_filter.y1;
 }
 
 }  // namespace
@@ -156,6 +208,7 @@ void note_on(SynthVoice& voice, float frequency_hz, uint32_t sample_rate, SynthT
     voice.phase = 0.0f;
     voice.base_frequency_hz = frequency_hz;
     voice.phase_step = 0.0f;
+    reset_noise_filter_state(voice);
     refresh_pitch_state(voice, sample_rate);
 }
 
@@ -173,6 +226,7 @@ void note_off(SynthVoice& voice) {
     voice.active = false;
     voice.phase = 0.0f;
     voice.phase_step = 0.0f;
+    reset_noise_filter_state(voice);
 }
 
 void select_instrument(SynthVoice& voice, uint8_t instrument, SynthType fallback_type) {
@@ -224,7 +278,7 @@ float next_sample(SynthVoice& voice) {
         waveform = triangle_wave(voice.phase);
         break;
     case SynthType::Noise:
-        waveform = next_noise_sample(voice);
+        waveform = next_filtered_noise_sample(voice);
         break;
     }
 

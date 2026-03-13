@@ -1,6 +1,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <cstdint>
 #include <cmath>
 
 #include "audio_debug.hpp"
@@ -46,6 +47,50 @@ gaga::PatternSnapshot make_snapshot(std::initializer_list<gaga::RowOp> ops) {
 
 bool approximately_equal(float left, float right, float tolerance = 1.0e-4f) {
     return std::abs(left - right) <= tolerance;
+}
+
+gaga::PatternSnapshot make_single_note_snapshot(uint8_t note_index) {
+    gaga::PatternData pattern;
+    pattern.op = {gaga::RowOp::NoteOn, gaga::RowOp::NoteOff};
+    pattern.note_index = {note_index, 0};
+    pattern.source_line = {1, 2};
+    pattern.fx_start = {0, 0};
+    pattern.fx_count = {0, 0};
+
+    std::vector<std::string> source_lines{
+        gaga::note_index_to_string(note_index),
+        "OFF",
+    };
+
+    return gaga::build_snapshot(std::move(pattern), std::move(source_lines), 0, 0, 1);
+}
+
+uint64_t count_zero_crossings(
+    const std::vector<float>& samples,
+    uint32_t channels,
+    uint32_t start_frame,
+    uint32_t frame_count) {
+    if (channels == 0 || frame_count < 2) {
+        return 0;
+    }
+
+    const size_t start_sample = static_cast<size_t>(start_frame) * channels;
+    const size_t end_sample = static_cast<size_t>(start_frame + frame_count) * channels;
+    if (end_sample > samples.size()) {
+        return 0;
+    }
+
+    uint64_t crossings = 0;
+    float previous = samples[start_sample];
+    for (size_t sample_index = start_sample + channels; sample_index < end_sample; sample_index += channels) {
+        const float current = samples[sample_index];
+        if ((previous <= 0.0f && current > 0.0f) || (previous >= 0.0f && current < 0.0f)) {
+            ++crossings;
+        }
+        previous = current;
+    }
+
+    return crossings;
 }
 
 bool test_audio_summary_counts() {
@@ -322,6 +367,89 @@ bool test_audio_summary_respects_tpo_and_vmv() {
     return true;
 }
 
+bool test_filtered_noise_is_note_dependent() {
+    gaga::AudioDebugConfig config;
+    config.synth_type = gaga::SynthType::Noise;
+    config.sample_rate = 48000;
+    config.channels = 1;
+
+    const auto low_snapshot = make_single_note_snapshot(36);
+    const auto high_snapshot = make_single_note_snapshot(72);
+    const auto low_rendered = gaga::render_pattern_audio_debug(low_snapshot, config, true);
+    const auto high_rendered = gaga::render_pattern_audio_debug(high_snapshot, config, true);
+    const uint32_t frames_per_row = gaga::compute_frames_per_row(config.sample_rate, config.bpm, config.lpb);
+    const uint32_t analysis_start = frames_per_row / 8;
+    const uint32_t analysis_frames = frames_per_row / 2;
+
+    const uint64_t low_crossings =
+        count_zero_crossings(low_rendered.interleaved_samples, config.channels, analysis_start, analysis_frames);
+    const uint64_t high_crossings =
+        count_zero_crossings(high_rendered.interleaved_samples, config.channels, analysis_start, analysis_frames);
+
+    if (low_crossings == 0 || high_crossings == 0) {
+        std::cerr << "expected filtered noise renders to contain sign changes\n";
+        return false;
+    }
+
+    if (high_crossings <= low_crossings) {
+        std::cerr << "expected higher filtered-noise notes to cross zero more often\n";
+        return false;
+    }
+
+    return true;
+}
+
+bool test_filtered_noise_pitch_fx_changes_tone() {
+    gaga::PatternData baseline_pattern;
+    baseline_pattern.op = {gaga::RowOp::NoteOn, gaga::RowOp::Empty, gaga::RowOp::NoteOff};
+    baseline_pattern.note_index = {48, 0, 0};
+    baseline_pattern.source_line = {1, 2, 3};
+    baseline_pattern.fx_start = {0, 0, 0};
+    baseline_pattern.fx_count = {0, 0, 0};
+
+    gaga::PatternData shifted_pattern = baseline_pattern;
+    shifted_pattern.fx_start = {0, 0, 1};
+    shifted_pattern.fx_count = {0, 1, 0};
+    shifted_pattern.fx_command = {gaga::FxCommand::Pitch};
+    shifted_pattern.fx_value = {0x0C};
+
+    const auto baseline_snapshot = gaga::build_snapshot(
+        std::move(baseline_pattern),
+        std::vector<std::string>{"C-4", "---", "OFF"},
+        0,
+        0,
+        1);
+    const auto shifted_snapshot = gaga::build_snapshot(
+        std::move(shifted_pattern),
+        std::vector<std::string>{"C-4", "--- PIT 0C", "OFF"},
+        0,
+        0,
+        2);
+
+    gaga::AudioDebugConfig config;
+    config.synth_type = gaga::SynthType::Noise;
+    config.sample_rate = 48000;
+    config.channels = 1;
+
+    const auto baseline_rendered = gaga::render_pattern_audio_debug(baseline_snapshot, config, true);
+    const auto shifted_rendered = gaga::render_pattern_audio_debug(shifted_snapshot, config, true);
+    const uint32_t frames_per_row = gaga::compute_frames_per_row(config.sample_rate, config.bpm, config.lpb);
+    const uint32_t row_start = frames_per_row + (frames_per_row / 8);
+    const uint32_t row_frames = frames_per_row / 2;
+
+    const uint64_t baseline_crossings =
+        count_zero_crossings(baseline_rendered.interleaved_samples, config.channels, row_start, row_frames);
+    const uint64_t shifted_crossings =
+        count_zero_crossings(shifted_rendered.interleaved_samples, config.channels, row_start, row_frames);
+
+    if (shifted_crossings <= baseline_crossings) {
+        std::cerr << "expected PIT to brighten filtered noise on the following row\n";
+        return false;
+    }
+
+    return true;
+}
+
 bool test_parse_synth_type() {
     const auto saw = gaga::parse_synth_type("saw");
     if (!saw || saw.value() != gaga::SynthType::Saw) {
@@ -398,6 +526,14 @@ int main() {
     }
 
     if (!test_audio_summary_respects_tpo_and_vmv()) {
+        return 1;
+    }
+
+    if (!test_filtered_noise_is_note_dependent()) {
+        return 1;
+    }
+
+    if (!test_filtered_noise_pitch_fx_changes_tone()) {
         return 1;
     }
 

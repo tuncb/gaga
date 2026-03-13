@@ -16,6 +16,18 @@ enum class SynthType : uint8_t {
     Noise
 };
 
+struct NoiseFilterState {
+    float x1 = 0.0f;
+    float x2 = 0.0f;
+    float y1 = 0.0f;
+    float y2 = 0.0f;
+    float b0 = 1.0f;
+    float b1 = 0.0f;
+    float b2 = 0.0f;
+    float a1 = 0.0f;
+    float a2 = 0.0f;
+};
+
 struct SynthVoice {
     bool active = false;
     bool has_selected_instrument = false;
@@ -30,6 +42,7 @@ struct SynthVoice {
     int8_t fine_offset = 0;
     int8_t transpose_semitones = 0;
     uint32_t noise_state = 0x12345678U;
+    NoiseFilterState noise_filter;
 };
 
 tl::expected<SynthType, std::string> parse_synth_type(std::string_view name);
