@@ -11,15 +11,12 @@
 namespace gaga {
 
 enum class TokenKind : uint8_t {
-    Note,
+    Atom,
     TripleDash,
     DoubleDash,
-    Word,
-    HexByte,
     Comment,
     Newline,
-    EndOfFile,
-    Invalid
+    EndOfFile
 };
 
 struct TokenStream {

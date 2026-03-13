@@ -27,7 +27,7 @@ constexpr uint8_t kRowColumnInstrument = 1U << 1U;
 
 struct PatternData {
     std::vector<RowOp> op;
-    std::vector<uint8_t> note_index;
+    std::vector<uint8_t> midi_note;
     std::vector<uint32_t> source_line;
     std::vector<uint8_t> row_columns;
     std::vector<uint8_t> volume;
@@ -55,7 +55,7 @@ struct PatternSnapshot {
     uint32_t display_generation = 0;
 };
 
-std::string row_event_to_string(RowOp op, uint8_t note_index);
+std::string row_event_to_string(RowOp op, uint8_t midi_note);
 std::string row_columns_to_string(const PatternData& pattern, size_t row);
 std::string fx_command_to_string(FxCommand command);
 std::string fx_to_string(FxCommand command, uint8_t value);

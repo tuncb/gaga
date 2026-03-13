@@ -1,21 +1,21 @@
 # Held notes shifted in semitone steps with PIT.
 # PIT values are signed hex semitone offsets.
 
-C-3 PIT 00
+C3 PIT 00
 --- PIT 04
 --- PIT 07
 --- PIT 0C
 --- PIT 07
 --- PIT 04
 --- PIT 00
-G-2 PIT 00
+G2 PIT 00
 --- PIT FF
 --- PIT FE
 --- PIT FC
 --- PIT FE
 --- PIT FF
 --- PIT 00
-A-2 PIT 00
+A2 PIT 00
 --- PIT 03
 --- PIT 05
 --- PIT 07

@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 
 #include <tl/expected.hpp>
 
@@ -34,11 +35,11 @@ enum class NoteParseError : uint8_t {
 
 struct ParsedNote {
     Note note;
-    uint8_t note_index;
+    uint8_t midi_note;
 };
 
-tl::expected<ParsedNote, NoteParseError> decode_note(char letter, char accidental, char octave_char);
-float note_index_to_frequency(uint8_t note_index);
-std::string note_index_to_string(uint8_t note_index);
+tl::expected<ParsedNote, NoteParseError> parse_scientific_pitch(std::string_view text);
+float midi_note_to_frequency(uint8_t midi_note);
+std::string midi_note_to_string(uint8_t midi_note);
 
 }  // namespace gaga

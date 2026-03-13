@@ -18,12 +18,12 @@ std::string hex_byte_to_string(uint8_t value) {
 
 }  // namespace
 
-std::string row_event_to_string(RowOp op, uint8_t note_index) {
+std::string row_event_to_string(RowOp op, uint8_t midi_note) {
     switch (op) {
     case RowOp::Empty:
         return "---";
     case RowOp::NoteOn:
-        return note_index_to_string(note_index);
+        return midi_note_to_string(midi_note);
     case RowOp::NoteOff:
         return "OFF";
     }
@@ -103,7 +103,7 @@ std::string row_to_string(const PatternData& pattern, size_t row) {
         return "???";
     }
 
-    std::string result = row_event_to_string(pattern.op[row], pattern.note_index[row]);
+    std::string result = row_event_to_string(pattern.op[row], pattern.midi_note[row]);
     const std::string columns = row_columns_to_string(pattern, row);
     if (!columns.empty()) {
         result += ' ';
@@ -132,12 +132,13 @@ PatternSnapshot build_snapshot(
     uint32_t display_generation) {
     PatternSnapshot snapshot;
     snapshot.pattern = std::move(pattern);
+    snapshot.pattern.midi_note.resize(snapshot.pattern.row_count(), 0);
     snapshot.pattern.row_columns.resize(snapshot.pattern.row_count(), 0);
     snapshot.pattern.volume.resize(snapshot.pattern.row_count(), 0);
     snapshot.pattern.instrument.resize(snapshot.pattern.row_count(), 0);
-    snapshot.frequency_hz.resize(120);
-    for (uint8_t note_index = 0; note_index < snapshot.frequency_hz.size(); ++note_index) {
-        snapshot.frequency_hz[note_index] = note_index_to_frequency(note_index);
+    snapshot.frequency_hz.resize(128);
+    for (uint16_t midi_note = 0; midi_note < snapshot.frequency_hz.size(); ++midi_note) {
+        snapshot.frequency_hz[midi_note] = midi_note_to_frequency(static_cast<uint8_t>(midi_note));
     }
     snapshot.source_lines = std::move(source_lines);
     snapshot.file_timestamp = file_timestamp;

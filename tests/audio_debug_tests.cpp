@@ -17,7 +17,7 @@ constexpr float kTwoPi = 6.28318530717958647692f;
 gaga::PatternSnapshot make_snapshot(std::initializer_list<gaga::RowOp> ops) {
     gaga::PatternData pattern;
     pattern.op.assign(ops.begin(), ops.end());
-    pattern.note_index.resize(pattern.op.size(), 0);
+    pattern.midi_note.resize(pattern.op.size(), 0);
     pattern.source_line.resize(pattern.op.size(), 0);
     pattern.fx_start.resize(pattern.op.size(), 0);
     pattern.fx_count.resize(pattern.op.size(), 0);
@@ -33,8 +33,8 @@ gaga::PatternSnapshot make_snapshot(std::initializer_list<gaga::RowOp> ops) {
             source_lines.emplace_back("---");
             break;
         case gaga::RowOp::NoteOn:
-            pattern.note_index[index] = 48;
-            source_lines.emplace_back("C-4");
+            pattern.midi_note[index] = 60;
+            source_lines.emplace_back("C4");
             break;
         case gaga::RowOp::NoteOff:
             source_lines.emplace_back("OFF");
@@ -49,16 +49,16 @@ bool approximately_equal(float left, float right, float tolerance = 1.0e-4f) {
     return std::abs(left - right) <= tolerance;
 }
 
-gaga::PatternSnapshot make_single_note_snapshot(uint8_t note_index) {
+gaga::PatternSnapshot make_single_note_snapshot(uint8_t midi_note) {
     gaga::PatternData pattern;
     pattern.op = {gaga::RowOp::NoteOn, gaga::RowOp::NoteOff};
-    pattern.note_index = {note_index, 0};
+    pattern.midi_note = {midi_note, 0};
     pattern.source_line = {1, 2};
     pattern.fx_start = {0, 0};
     pattern.fx_count = {0, 0};
 
     std::vector<std::string> source_lines{
-        gaga::note_index_to_string(note_index),
+        gaga::midi_note_to_string(midi_note),
         "OFF",
     };
 
@@ -129,7 +129,7 @@ bool test_audio_summary_counts() {
 bool test_volume_and_instrument_columns_update_voice_state() {
     gaga::PatternData pattern;
     pattern.op = {gaga::RowOp::NoteOn, gaga::RowOp::NoteOn, gaga::RowOp::NoteOn, gaga::RowOp::NoteOff};
-    pattern.note_index = {48, 50, 52, 0};
+    pattern.midi_note = {60, 62, 64, 0};
     pattern.source_line = {1, 2, 3, 4};
     pattern.row_columns = {
         static_cast<uint8_t>(gaga::kRowColumnVolume | gaga::kRowColumnInstrument),
@@ -143,9 +143,9 @@ bool test_volume_and_instrument_columns_update_voice_state() {
     pattern.fx_count = {0, 0, 0, 0};
 
     std::vector<std::string> source_lines{
-        "C-4 40 02",
-        "D-4",
-        "E-4 -- 03",
+        "C4 40 02",
+        "D4",
+        "E4 -- 03",
         "OFF",
     };
 
@@ -211,7 +211,7 @@ bool test_volume_and_instrument_columns_update_voice_state() {
 bool test_apply_row_fx_updates_voice_state() {
     gaga::PatternData pattern;
     pattern.op = {gaga::RowOp::NoteOn, gaga::RowOp::Empty, gaga::RowOp::Empty, gaga::RowOp::NoteOff};
-    pattern.note_index = {48, 0, 0, 0};
+    pattern.midi_note = {60, 0, 0, 0};
     pattern.source_line = {1, 2, 3, 4};
     pattern.fx_start = {0, 1, 3, 6};
     pattern.fx_count = {1, 2, 3, 0};
@@ -226,7 +226,7 @@ bool test_apply_row_fx_updates_voice_state() {
     pattern.fx_value = {0x20, 0x01, 0x40, 0xFF, 0x90, 0x80};
 
     std::vector<std::string> source_lines{
-        "C-4 VOL 20",
+        "C4 VOL 20",
         "--- PIT 01 FIN 40",
         "--- TSP FF TPO 90 VMV 80",
         "OFF",
@@ -267,7 +267,7 @@ bool test_apply_row_fx_updates_voice_state() {
         snapshot.frequency_hz,
         48000);
     const float expected_frequency_after_pitch =
-        gaga::note_index_to_frequency(48) * std::pow(2.0f, 1.5f / 12.0f);
+        gaga::midi_note_to_frequency(60) * std::pow(2.0f, 1.5f / 12.0f);
     const float expected_phase_step_after_pitch = kTwoPi * expected_frequency_after_pitch / 48000.0f;
 
     if (!approximately_equal(voice.phase_step, expected_phase_step_after_pitch)) {
@@ -285,7 +285,7 @@ bool test_apply_row_fx_updates_voice_state() {
         snapshot.frequency_hz,
         48000);
     const float expected_frequency_after_transpose =
-        gaga::note_index_to_frequency(48) * std::pow(2.0f, 0.5f / 12.0f);
+        gaga::midi_note_to_frequency(60) * std::pow(2.0f, 0.5f / 12.0f);
     const float expected_phase_step_after_transpose = kTwoPi * expected_frequency_after_transpose / 48000.0f;
 
     if (!approximately_equal(voice.phase_step, expected_phase_step_after_transpose)) {
@@ -323,7 +323,7 @@ bool test_apply_row_fx_updates_voice_state() {
 bool test_audio_summary_respects_tpo_and_vmv() {
     gaga::PatternData pattern;
     pattern.op = {gaga::RowOp::NoteOn, gaga::RowOp::Empty, gaga::RowOp::NoteOff};
-    pattern.note_index = {48, 0, 0};
+    pattern.midi_note = {60, 0, 0};
     pattern.source_line = {1, 2, 3};
     pattern.fx_start = {0, 1, 3};
     pattern.fx_count = {1, 2, 0};
@@ -335,7 +335,7 @@ bool test_audio_summary_respects_tpo_and_vmv() {
     pattern.fx_value = {0x40, 0xF0, 0x80};
 
     std::vector<std::string> source_lines{
-        "C-4 VMV 40",
+        "C4 VMV 40",
         "--- TPO F0 VMV 80",
         "OFF",
     };
@@ -402,7 +402,7 @@ bool test_filtered_noise_is_note_dependent() {
 bool test_filtered_noise_pitch_fx_changes_tone() {
     gaga::PatternData baseline_pattern;
     baseline_pattern.op = {gaga::RowOp::NoteOn, gaga::RowOp::Empty, gaga::RowOp::NoteOff};
-    baseline_pattern.note_index = {48, 0, 0};
+    baseline_pattern.midi_note = {60, 0, 0};
     baseline_pattern.source_line = {1, 2, 3};
     baseline_pattern.fx_start = {0, 0, 0};
     baseline_pattern.fx_count = {0, 0, 0};
@@ -415,13 +415,13 @@ bool test_filtered_noise_pitch_fx_changes_tone() {
 
     const auto baseline_snapshot = gaga::build_snapshot(
         std::move(baseline_pattern),
-        std::vector<std::string>{"C-4", "---", "OFF"},
+        std::vector<std::string>{"C4", "---", "OFF"},
         0,
         0,
         1);
     const auto shifted_snapshot = gaga::build_snapshot(
         std::move(shifted_pattern),
-        std::vector<std::string>{"C-4", "--- PIT 0C", "OFF"},
+        std::vector<std::string>{"C4", "--- PIT 0C", "OFF"},
         0,
         0,
         2);

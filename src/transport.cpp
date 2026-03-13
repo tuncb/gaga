@@ -62,9 +62,9 @@ void apply_row_event(
         const SynthType trigger_type =
             voice.has_selected_instrument ? voice.selected_type : synth_type;
         if (!voice.active || retrigger_instrument) {
-            note_on(voice, frequency_hz[pattern.note_index[row]], sample_rate, trigger_type);
+            note_on(voice, frequency_hz[pattern.midi_note[row]], sample_rate, trigger_type);
         } else {
-            change_note(voice, frequency_hz[pattern.note_index[row]], sample_rate);
+            change_note(voice, frequency_hz[pattern.midi_note[row]], sample_rate);
         }
         break;
     }

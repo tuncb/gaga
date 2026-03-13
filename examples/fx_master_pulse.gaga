@@ -1,22 +1,22 @@
 # A simple melody with VMV shaping the whole output.
 # VMV is absolute master gain from 00 to FF.
 
-C-4 VMV 30
+C4 VMV 30
 ---
-E-4 VMV 50
+E4 VMV 50
 ---
-G-4 VMV 70
+G4 VMV 70
 ---
-C-5 VMV 90
+C5 VMV 90
 ---
-G-4 VMV C0
+G4 VMV C0
 ---
-E-4 VMV FF
+E4 VMV FF
 ---
-C-4 VMV 80
+C4 VMV 80
 ---
-G-3 VMV 40
+G3 VMV 40
 ---
-C-4 VMV 20
+C4 VMV 20
 ---
 OFF VMV FF

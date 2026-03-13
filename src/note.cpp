@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cmath>
+#include <cctype>
 
 namespace gaga {
 
@@ -29,50 +30,105 @@ constexpr std::array<PitchMapping, 12> kPitchMappings{{
 }};
 
 constexpr std::array<const char*, 12> kPitchNames{
-    "C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-",
+    "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
 };
+
+char ascii_upper(char value) {
+    if (value >= 'a' && value <= 'z') {
+        return static_cast<char>(value - 'a' + 'A');
+    }
+    return value;
+}
+
+tl::expected<int, NoteParseError> parse_pitch_index(char letter, bool sharp) {
+    switch (ascii_upper(letter)) {
+    case 'C':
+        return sharp ? 1 : 0;
+    case 'D':
+        return sharp ? 3 : 2;
+    case 'E':
+        if (sharp) {
+            return tl::unexpected(NoteParseError::InvalidToken);
+        }
+        return 4;
+    case 'F':
+        return sharp ? 6 : 5;
+    case 'G':
+        return sharp ? 8 : 7;
+    case 'A':
+        return sharp ? 10 : 9;
+    case 'B':
+        if (sharp) {
+            return tl::unexpected(NoteParseError::InvalidToken);
+        }
+        return 11;
+    default:
+        return tl::unexpected(NoteParseError::InvalidToken);
+    }
+}
 
 }  // namespace
 
-tl::expected<ParsedNote, NoteParseError> decode_note(char letter, char accidental, char octave_char) {
-    if (octave_char < '0' || octave_char > '9') {
+tl::expected<ParsedNote, NoteParseError> parse_scientific_pitch(std::string_view text) {
+    if (text.size() < 2) {
         return tl::unexpected(NoteParseError::InvalidToken);
     }
 
-    const int octave = octave_char - '0';
-    int pitch_index = -1;
-    PitchClass pitch = PitchClass::C;
+    const char letter = ascii_upper(text[0]);
+    bool sharp = false;
+    size_t index = 1;
+    if (index < text.size() && text[index] == '#') {
+        sharp = true;
+        ++index;
+    }
 
-    for (int index = 0; index < static_cast<int>(kPitchMappings.size()); ++index) {
-        const auto& mapping = kPitchMappings[index];
-        if (mapping.letter == letter && mapping.accidental == accidental) {
-            pitch_index = index;
-            pitch = mapping.pitch;
-            break;
+    if (index >= text.size()) {
+        return tl::unexpected(NoteParseError::InvalidToken);
+    }
+
+    bool negative = false;
+    if (text[index] == '-') {
+        negative = true;
+        ++index;
+    }
+    if (index >= text.size()) {
+        return tl::unexpected(NoteParseError::InvalidToken);
+    }
+
+    int octave = 0;
+    for (; index < text.size(); ++index) {
+        const char current = text[index];
+        if (std::isdigit(static_cast<unsigned char>(current)) == 0) {
+            return tl::unexpected(NoteParseError::InvalidToken);
         }
+        octave = (octave * 10) + (current - '0');
+    }
+    if (negative) {
+        octave = -octave;
     }
 
-    if (pitch_index < 0) {
-        return tl::unexpected(NoteParseError::InvalidToken);
+    const auto pitch_index = parse_pitch_index(letter, sharp);
+    if (!pitch_index) {
+        return tl::unexpected(pitch_index.error());
     }
 
-    const int note_index = octave * 12 + pitch_index;
-    if (note_index < 0 || note_index > 119) {
+    const int midi_note = ((octave + 1) * 12) + pitch_index.value();
+    if (midi_note < 0 || midi_note > 127) {
         return tl::unexpected(NoteParseError::NoteOutOfRange);
     }
 
-    return ParsedNote{Note{pitch, octave}, static_cast<uint8_t>(note_index)};
+    const auto& mapping = kPitchMappings[static_cast<size_t>(pitch_index.value())];
+    return ParsedNote{Note{mapping.pitch, octave}, static_cast<uint8_t>(midi_note)};
 }
 
-float note_index_to_frequency(uint8_t note_index) {
-    const int midi = static_cast<int>(note_index) + 12;
-    return 440.0f * std::pow(2.0f, static_cast<float>(midi - 69) / 12.0f);
+float midi_note_to_frequency(uint8_t midi_note) {
+    return 440.0f * std::pow(2.0f, static_cast<float>(static_cast<int>(midi_note) - 69) / 12.0f);
 }
 
-std::string note_index_to_string(uint8_t note_index) {
-    const int octave = note_index / 12;
-    const int pitch = note_index % 12;
-    return std::string(kPitchNames[static_cast<size_t>(pitch)]) + static_cast<char>('0' + octave);
+std::string midi_note_to_string(uint8_t midi_note) {
+    const int octave = static_cast<int>(midi_note) / 12 - 1;
+    const int pitch = static_cast<int>(midi_note) % 12;
+    return std::string(kPitchNames[static_cast<size_t>(pitch)]) + std::to_string(octave);
 }
 
 }  // namespace gaga

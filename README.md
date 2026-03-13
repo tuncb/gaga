@@ -67,15 +67,15 @@ Supported synth waveforms for `--synth` are `sine`, `square`, `saw`,
 
 Each row starts with one of:
 
-- a note like `C-4` or `F#3`
+- a note like `C4`, `F#3`, or `C-1`
 - `OFF`
 - `---`
 
 Rows can also carry optional M8-style `volume` and `instrument` columns before any FX pairs:
 
 ```text
-C-4 64 saw
-D-4 triangle
+C4 64 saw
+D4 triangle
 --- noise
 ```
 
@@ -88,8 +88,8 @@ Column rules:
 Rows can also carry zero or more FX pairs after the row event or optional columns:
 
 ```text
-C-4 64 square VOL 20
-D-4 triangle
+C4 64 square VOL 20
+D4 triangle
 --- PIT 01 FIN 40
 --- noise TSP FF TPO 90 VMV 80
 OFF VOL E0
@@ -106,4 +106,6 @@ Supported row FX today:
 
 The `instrument` column is a names-only selector for the built-in waveforms. This is not a full Dirtywave M8 instrument implementation. It is a small built-in layer over the existing single-voice synth so the column is immediately usable in `gaga`.
 
-Pattern tokens are case-insensitive. Normalized output prints uppercase note names, column values, FX names, and hex values.
+Scientific pitch notation is canonical. Notes use the MIDI-aligned `C-1` to `G9`
+range, where `C4` is middle C. Pattern tokens are case-insensitive.
+Normalized output prints uppercase note names, column values, FX names, and hex values.

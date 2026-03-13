@@ -9,7 +9,7 @@ namespace {
 bool test_comments_and_rows() {
     gaga::SourceText source{
         "memory",
-        std::vector<char>{'#', ' ', 'x', '\n', 'C', '-', '4', '\n', '-', '-', '-', '\n', 'O', 'F', 'F'}};
+        std::vector<char>{'#', ' ', 'x', '\n', 'C', '4', '\n', '-', '-', '-', '\n', 'O', 'F', 'F'}};
 
     const auto tokenization = gaga::tokenize(source);
     if (!tokenization.diagnostics.empty()) {
@@ -37,7 +37,7 @@ bool test_fx_rows_parse() {
     gaga::SourceText source{
         "memory",
         std::vector<char>{
-            'C', '-', '4', ' ', 'V', 'O', 'L', ' ', '2', '0', ' ', 'P', 'I', 'T', ' ', '0', '1', ' ', 'T', 'S', 'P', ' ', 'F', 'F', '\n',
+            'C', '4', ' ', 'V', 'O', 'L', ' ', '2', '0', ' ', 'P', 'I', 'T', ' ', '0', '1', ' ', 'T', 'S', 'P', ' ', 'F', 'F', '\n',
             '-', '-', '-', ' ', 'F', 'I', 'N', ' ', 'F', '0', ' ', 'T', 'P', 'O', ' ', '9', '0', '\n',
             'O', 'F', 'F', ' ', 'V', 'M', 'V', ' ', 'C', '0', ' ', '#', ' ', 'x',
         }};
@@ -85,7 +85,7 @@ bool test_mixed_case_pattern_tokens_parse() {
     gaga::SourceText source{
         "memory",
         std::vector<char>{
-            'c', '-', '4', ' ', 'v', 'O', 'l', ' ', '2', 'a', ' ', 'p', 'I', 't', ' ', '0', '1', ' ', 't', 'S', 'p', ' ', 'f', 'F', '\n',
+            'c', '4', ' ', 'v', 'O', 'l', ' ', '2', 'a', ' ', 'p', 'I', 't', ' ', '0', '1', ' ', 't', 'S', 'p', ' ', 'f', 'F', '\n',
             '-', '-', '-', ' ', 'F', 'i', 'N', ' ', 'f', '0', ' ', 'T', 'p', 'O', ' ', '9', '0', '\n',
             'o', 'F', 'f', ' ', 'V', 'm', 'V', ' ', 'c', '0', ' ', '#', ' ', 'x',
         }};
@@ -108,7 +108,7 @@ bool test_mixed_case_pattern_tokens_parse() {
     }
 
     if (parse.pattern.op[0] != gaga::RowOp::NoteOn ||
-        parse.pattern.note_index[0] != 48 ||
+        parse.pattern.midi_note[0] != 60 ||
         parse.pattern.op[1] != gaga::RowOp::Empty ||
         parse.pattern.op[2] != gaga::RowOp::NoteOff) {
         std::cerr << "unexpected row events for mixed-case pattern tokens\n";
@@ -141,9 +141,9 @@ bool test_volume_and_instrument_columns_parse() {
     gaga::SourceText source{
         "memory",
         std::vector<char>{
-            'C', '-', '4', ' ', '6', '4', ' ', 's', 'q', 'u', 'a', 'r', 'e', ' ', 'V', 'O', 'L', ' ', '2', '0', '\n',
-            'D', '-', '4', ' ', 't', 'r', 'i', 'a', 'n', 'g', 'l', 'e', '\n',
-            'E', '-', '4', ' ', '4', '0', '\n',
+            'C', '4', ' ', '6', '4', ' ', 's', 'q', 'u', 'a', 'r', 'e', ' ', 'V', 'O', 'L', ' ', '2', '0', '\n',
+            'D', '4', ' ', 't', 'r', 'i', 'a', 'n', 'g', 'l', 'e', '\n',
+            'E', '4', ' ', '4', '0', '\n',
             '-', '-', '-', ' ', 'n', 'o', 'i', 's', 'e',
         }};
 
@@ -187,9 +187,9 @@ bool test_volume_and_instrument_columns_parse() {
 
     return parse.pattern.row_columns[3] == gaga::kRowColumnInstrument &&
            parse.pattern.instrument[3] == 0x04 &&
-           gaga::row_to_string(parse.pattern, 0) == "C-4 64 square VOL 20" &&
-           gaga::row_to_string(parse.pattern, 1) == "D-4 triangle" &&
-           gaga::row_to_string(parse.pattern, 2) == "E-4 40" &&
+           gaga::row_to_string(parse.pattern, 0) == "C4 64 square VOL 20" &&
+           gaga::row_to_string(parse.pattern, 1) == "D4 triangle" &&
+           gaga::row_to_string(parse.pattern, 2) == "E4 40" &&
            gaga::row_to_string(parse.pattern, 3) == "--- noise";
 }
 
@@ -197,9 +197,9 @@ bool test_named_instrument_columns_parse() {
     gaga::SourceText source{
         "memory",
         std::vector<char>{
-            'C', '-', '4', ' ', '6', '4', ' ', 's', 'a', 'w', '\n',
-            'D', '-', '4', ' ', '-', '-', ' ', 't', 'r', 'i', 'a', 'n', 'g', 'l', 'e', '\n',
-            'E', '-', '4', ' ', '-', '-', ' ', 'n', 'o', 'i', 's', 'e',
+            'C', '4', ' ', '6', '4', ' ', 's', 'a', 'w', '\n',
+            'D', '4', ' ', '-', '-', ' ', 't', 'r', 'i', 'a', 'n', 'g', 'l', 'e', '\n',
+            'E', '4', ' ', '-', '-', ' ', 'n', 'o', 'i', 's', 'e',
         }};
 
     const auto tokenization = gaga::tokenize(source);
@@ -217,19 +217,19 @@ bool test_named_instrument_columns_parse() {
     return parse.pattern.row_columns[0] == (gaga::kRowColumnVolume | gaga::kRowColumnInstrument) &&
            parse.pattern.volume[0] == 0x64 &&
            parse.pattern.instrument[0] == 0x02 &&
-           gaga::row_to_string(parse.pattern, 0) == "C-4 64 saw" &&
+           gaga::row_to_string(parse.pattern, 0) == "C4 64 saw" &&
            parse.pattern.row_columns[1] == gaga::kRowColumnInstrument &&
            parse.pattern.instrument[1] == 0x03 &&
            parse.pattern.row_columns[2] == gaga::kRowColumnInstrument &&
            parse.pattern.instrument[2] == 0x04 &&
-           gaga::row_to_string(parse.pattern, 1) == "D-4 triangle" &&
-           gaga::row_to_string(parse.pattern, 2) == "E-4 noise";
+           gaga::row_to_string(parse.pattern, 1) == "D4 triangle" &&
+           gaga::row_to_string(parse.pattern, 2) == "E4 noise";
 }
 
 bool test_column_values_over_7f_rejected() {
     gaga::SourceText source{
         "memory",
-        std::vector<char>{'C', '-', '4', ' ', '8', '0', ' ', '0', '1', '\n'}};
+        std::vector<char>{'C', '4', ' ', '8', '0', ' ', '0', '1', '\n'}};
 
     const auto tokenization = gaga::tokenize(source);
     if (!tokenization.diagnostics.empty()) {
@@ -249,7 +249,7 @@ bool test_column_values_over_7f_rejected() {
 bool test_unknown_named_instrument_rejected() {
     gaga::SourceText source{
         "memory",
-        std::vector<char>{'C', '-', '4', ' ', '-', '-', ' ', 's', 'u', 'p', 'e', 'r', 's', 'a', 'w', '\n'}};
+        std::vector<char>{'C', '4', ' ', '-', '-', ' ', 's', 'u', 'p', 'e', 'r', 's', 'a', 'w', '\n'}};
 
     const auto tokenization = gaga::tokenize(source);
     if (!tokenization.diagnostics.empty()) {
@@ -269,7 +269,7 @@ bool test_unknown_named_instrument_rejected() {
 bool test_numeric_instrument_rejected() {
     gaga::SourceText source{
         "memory",
-        std::vector<char>{'C', '-', '4', ' ', '6', '4', ' ', '0', '1', '\n'}};
+        std::vector<char>{'C', '4', ' ', '6', '4', ' ', '0', '1', '\n'}};
 
     const auto tokenization = gaga::tokenize(source);
     if (!tokenization.diagnostics.empty()) {
@@ -283,32 +283,41 @@ bool test_numeric_instrument_rejected() {
         return false;
     }
 
-    return parse.diagnostics[0].kind == gaga::DiagnosticKind::TrailingTokens;
+    return parse.diagnostics[0].kind == gaga::DiagnosticKind::InvalidToken;
 }
 
-bool test_invalid_note_shape() {
-    gaga::SourceText source{"memory", std::vector<char>{'C', '4', '\n'}};
+bool test_scientific_pitch_range_limits() {
+    gaga::SourceText source{
+        "memory",
+        std::vector<char>{
+            'C', '-', '1', '\n',
+            'G', '9', '\n',
+            'G', '#', '9', '\n',
+        }};
 
     const auto tokenization = gaga::tokenize(source);
     const auto parse = gaga::parse_pattern(source, tokenization.stream);
 
     if (!tokenization.diagnostics.empty()) {
-        std::cerr << "unexpected tokenizer diagnostics for C4\n";
+        std::cerr << "unexpected tokenizer diagnostics for SPN range limits\n";
         return false;
     }
 
     if (parse.diagnostics.size() != 1) {
-        std::cerr << "expected one parser diagnostic for C4\n";
+        std::cerr << "expected one parser diagnostic for out-of-range SPN\n";
         return false;
     }
 
-    return parse.diagnostics[0].kind == gaga::DiagnosticKind::UnexpectedToken;
+    return parse.pattern.row_count() == 2 &&
+           parse.pattern.midi_note[0] == 0 &&
+           parse.pattern.midi_note[1] == 127 &&
+           parse.diagnostics[0].kind == gaga::DiagnosticKind::NoteOutOfRange;
 }
 
 bool test_unknown_fx_command_rejected() {
     gaga::SourceText source{
         "memory",
-        std::vector<char>{'C', '-', '4', ' ', 'P', 'A', 'N', ' ', '1', '0', '\n'}};
+        std::vector<char>{'C', '4', ' ', 'P', 'A', 'N', ' ', '1', '0', '\n'}};
 
     const auto tokenization = gaga::tokenize(source);
     if (!tokenization.diagnostics.empty()) {
@@ -360,7 +369,7 @@ int main() {
         return 1;
     }
 
-    if (!test_invalid_note_shape()) {
+    if (!test_scientific_pitch_range_limits()) {
         return 1;
     }
 

@@ -20,7 +20,7 @@ build-msvc\gaga.exe examples\m8_columns.gaga --trace
 
 What to edit:
 
-- Change any note token like `C-4` or `F#3`.
+- Change any note token like `C4`, `C-1`, or `F#3`.
 - Use `---` to keep the current note playing.
 - Use `OFF` to stop the current note.
 - Add row FX like `VOL 20`, `PIT 01`, or `FIN F0` after the row token.

@@ -34,7 +34,7 @@ bool ascii_iequals(std::string_view left, std::string_view right) {
 void append_row(
     PatternData& pattern,
     RowOp op,
-    uint8_t note_index,
+    uint8_t midi_note,
     uint32_t source_line,
     uint8_t row_columns,
     uint8_t volume,
@@ -42,7 +42,7 @@ void append_row(
     const std::vector<FxCommand>& row_fx_command,
     const std::vector<uint8_t>& row_fx_value) {
     pattern.op.push_back(op);
-    pattern.note_index.push_back(note_index);
+    pattern.midi_note.push_back(midi_note);
     pattern.source_line.push_back(source_line);
     pattern.row_columns.push_back(row_columns);
     pattern.volume.push_back(volume);
@@ -75,12 +75,17 @@ bool is_line_end(TokenKind kind) {
     return kind == TokenKind::Newline || kind == TokenKind::EndOfFile;
 }
 
-bool is_column_token(TokenKind kind) {
-    return kind == TokenKind::HexByte || kind == TokenKind::DoubleDash;
+bool starts_like_note(std::string_view text) {
+    if (text.empty()) {
+        return false;
+    }
+
+    const char normalized = ascii_upper(text[0]);
+    return normalized >= 'A' && normalized <= 'G';
 }
 
 bool is_instrument_name_token(const SourceText& source, const TokenStream& stream, size_t index) {
-    if (index >= stream.size() || stream.kind[index] != TokenKind::Word) {
+    if (index >= stream.size() || stream.kind[index] != TokenKind::Atom) {
         return false;
     }
 
@@ -95,6 +100,10 @@ tl::expected<FxCommand, DiagnosticKind> parse_fx_command(
     const SourceText& source,
     const TokenStream& stream,
     size_t index) {
+    if (index >= stream.size() || stream.kind[index] != TokenKind::Atom) {
+        return tl::unexpected(DiagnosticKind::InvalidToken);
+    }
+
     const auto text = token_text(source, stream, index);
     if (ascii_iequals(text, "VOL")) {
         return FxCommand::Volume;
@@ -122,6 +131,10 @@ tl::expected<uint8_t, DiagnosticKind> parse_hex_byte(
     const SourceText& source,
     const TokenStream& stream,
     size_t index) {
+    if (index >= stream.size() || stream.kind[index] != TokenKind::Atom) {
+        return tl::unexpected(DiagnosticKind::InvalidToken);
+    }
+
     const auto text = token_text(source, stream, index);
     if (text.size() != 2) {
         return tl::unexpected(DiagnosticKind::InvalidToken);
@@ -167,6 +180,14 @@ tl::expected<std::pair<bool, uint8_t>, DiagnosticKind> parse_column_value(
     return std::pair<bool, uint8_t>{true, value.value()};
 }
 
+bool is_hex_byte_token(const SourceText& source, const TokenStream& stream, size_t index) {
+    if (index >= stream.size() || stream.kind[index] != TokenKind::Atom) {
+        return false;
+    }
+
+    return parse_hex_byte(source, stream, index).has_value();
+}
+
 tl::expected<std::pair<bool, uint8_t>, DiagnosticKind> parse_instrument_column_value(
     const SourceText& source,
     const TokenStream& stream,
@@ -208,15 +229,10 @@ ParseResult parse_pattern(const SourceText& source, const TokenStream& stream) {
             continue;
         }
 
-        if (kind == TokenKind::Invalid) {
-            skip_to_line_end(stream, index);
-            continue;
-        }
-
         const size_t row_start = index;
         bool row_valid = true;
         RowOp row_op = RowOp::Empty;
-        uint8_t row_note_index = 0;
+        uint8_t row_midi_note = 0;
         uint8_t row_columns = 0;
         uint8_t row_volume = 0;
         uint8_t row_instrument = 0;
@@ -226,27 +242,27 @@ ParseResult parse_pattern(const SourceText& source, const TokenStream& stream) {
         if (kind == TokenKind::TripleDash) {
             row_op = RowOp::Empty;
             ++index;
-        } else if (kind == TokenKind::Word && token_equals(source, stream, index, "OFF")) {
+        } else if (kind == TokenKind::Atom && token_equals(source, stream, index, "OFF")) {
             row_op = RowOp::NoteOff;
             ++index;
-        } else if (kind == TokenKind::Note) {
-            const auto text = token_text(source, stream, index);
-            const char letter = ascii_upper(text[0]);
-            const char accidental = text[1];
-            const char octave = text[2];
-            const auto parsed_note = decode_note(letter, accidental, octave);
+        } else if (kind == TokenKind::Atom) {
+            const auto parsed_note = parse_scientific_pitch(token_text(source, stream, index));
             if (!parsed_note) {
+                const DiagnosticKind diagnostic_kind =
+                    starts_like_note(token_text(source, stream, index))
+                        ? (parsed_note.error() == NoteParseError::NoteOutOfRange ? DiagnosticKind::NoteOutOfRange
+                                                                                 : DiagnosticKind::InvalidToken)
+                        : DiagnosticKind::UnexpectedToken;
                 result.diagnostics.push_back(make_diagnostic(
                     stream,
                     row_start,
-                    parsed_note.error() == NoteParseError::NoteOutOfRange ? DiagnosticKind::NoteOutOfRange
-                                                                          : DiagnosticKind::InvalidToken));
+                    diagnostic_kind));
                 skip_to_line_end(stream, index);
                 continue;
             }
 
             row_op = RowOp::NoteOn;
-            row_note_index = parsed_note.value().note_index;
+            row_midi_note = parsed_note.value().midi_note;
             ++index;
         } else {
             result.diagnostics.push_back(make_diagnostic(stream, index, DiagnosticKind::UnexpectedToken));
@@ -254,7 +270,8 @@ ParseResult parse_pattern(const SourceText& source, const TokenStream& stream) {
             continue;
         }
 
-        if (index < stream.size() && is_column_token(stream.kind[index])) {
+        if (index < stream.size() &&
+            (stream.kind[index] == TokenKind::DoubleDash || is_hex_byte_token(source, stream, index))) {
             const auto volume = parse_column_value(source, stream, index);
             if (!volume) {
                 result.diagnostics.push_back(make_diagnostic(stream, index, volume.error()));
@@ -297,13 +314,7 @@ ParseResult parse_pattern(const SourceText& source, const TokenStream& stream) {
         }
 
         while (index < stream.size() && !is_line_end(stream.kind[index]) && stream.kind[index] != TokenKind::Comment) {
-            if (stream.kind[index] == TokenKind::Invalid) {
-                row_valid = false;
-                skip_to_line_end(stream, index);
-                break;
-            }
-
-            if (stream.kind[index] != TokenKind::Word) {
+            if (stream.kind[index] != TokenKind::Atom) {
                 row_valid = false;
                 result.diagnostics.push_back(make_diagnostic(stream, index, DiagnosticKind::TrailingTokens));
                 skip_to_line_end(stream, index);
@@ -319,7 +330,7 @@ ParseResult parse_pattern(const SourceText& source, const TokenStream& stream) {
             }
             ++index;
 
-            if (index >= stream.size() || stream.kind[index] != TokenKind::HexByte) {
+            if (index >= stream.size() || stream.kind[index] != TokenKind::Atom) {
                 row_valid = false;
                 const size_t diagnostic_index = index < stream.size() ? index : index - 1;
                 result.diagnostics.push_back(make_diagnostic(stream, diagnostic_index, DiagnosticKind::UnexpectedToken));
@@ -330,7 +341,7 @@ ParseResult parse_pattern(const SourceText& source, const TokenStream& stream) {
             const auto fx_value = parse_hex_byte(source, stream, index);
             if (!fx_value) {
                 row_valid = false;
-                result.diagnostics.push_back(make_diagnostic(stream, index, fx_value.error()));
+                result.diagnostics.push_back(make_diagnostic(stream, index, DiagnosticKind::UnexpectedToken));
                 skip_to_line_end(stream, index);
                 break;
             }
@@ -348,7 +359,7 @@ ParseResult parse_pattern(const SourceText& source, const TokenStream& stream) {
             append_row(
                 result.pattern,
                 row_op,
-                row_note_index,
+                row_midi_note,
                 stream.line[row_start],
                 row_columns,
                 row_volume,

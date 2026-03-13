@@ -1,28 +1,28 @@
 # One riff, moved around with TSP.
 # TSP uses signed semitone offsets in hex.
 
-C-4 TSP 00
+C4 TSP 00
 ---
-E-4
+E4
 ---
-G-4
+G4
 ---
-E-4
+E4
 ---
-C-4 TSP 07
+C4 TSP 07
 ---
-E-4
+E4
 ---
-G-4
+G4
 ---
-E-4
+E4
 ---
-C-4 TSP F9
+C4 TSP F9
 ---
-E-4
+E4
 ---
-G-4
+G4
 ---
-E-4
+E4
 ---
 OFF TSP 00

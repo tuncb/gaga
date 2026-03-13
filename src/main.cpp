@@ -282,9 +282,9 @@ void print_trace_rows(std::ostream& out, const PatternSnapshot& snapshot) {
             break;
         case RowOp::NoteOn:
             out << "row " << std::setw(3) << std::setfill('0') << row << ": note on "
-                << row_event_to_string(snapshot.pattern.op[row], snapshot.pattern.note_index[row]) << " ("
+                << row_event_to_string(snapshot.pattern.op[row], snapshot.pattern.midi_note[row]) << " ("
                 << std::fixed << std::setprecision(2)
-                << snapshot.frequency_hz[snapshot.pattern.note_index[row]] << " Hz)";
+                << snapshot.frequency_hz[snapshot.pattern.midi_note[row]] << " Hz)";
             if (!columns.empty()) {
                 out << ", columns " << columns;
             }

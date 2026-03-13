@@ -1,26 +1,26 @@
 # Soft-to-loud arpeggio using VOL offsets on held notes.
 # Useful for hearing row-to-row gain changes without changing pitch.
 
-C-4 VOL E0
+C4 VOL E0
 --- VOL F0
 --- VOL 00
 --- VOL 10
-E-4 VOL F0
+E4 VOL F0
 --- VOL 00
 --- VOL 10
 --- VOL 20
-G-4 VOL E0
+G4 VOL E0
 --- VOL F0
 --- VOL 00
 --- VOL 10
-C-5 VOL 20
+C5 VOL 20
 --- VOL 10
 --- VOL 00
 --- VOL F0
-G-4 VOL 10
+G4 VOL 10
 --- VOL 00
-E-4 VOL F0
+E4 VOL F0
 --- VOL E0
-C-4 VOL 00
+C4 VOL 00
 --- VOL F0
 OFF VOL E0
