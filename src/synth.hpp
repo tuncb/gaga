@@ -34,6 +34,8 @@ struct SynthVoice {
 
 tl::expected<SynthType, std::string> parse_synth_type(std::string_view name);
 std::string_view synth_type_name(SynthType type);
+tl::expected<uint8_t, std::string> parse_builtin_instrument_name(std::string_view name);
+std::string_view builtin_instrument_name(uint8_t instrument);
 void note_on(SynthVoice& voice, float frequency_hz, uint32_t sample_rate, SynthType type);
 void change_note(SynthVoice& voice, float frequency_hz, uint32_t sample_rate);
 void note_off(SynthVoice& voice);

@@ -384,6 +384,11 @@ int main() {
         return 1;
     }
 
+    const auto builtin_instrument = gaga::parse_builtin_instrument_name("triangle");
+    if (!builtin_instrument || builtin_instrument.value() != 3) {
+        return 1;
+    }
+
     if (!test_volume_and_instrument_columns_update_voice_state()) {
         return 1;
     }

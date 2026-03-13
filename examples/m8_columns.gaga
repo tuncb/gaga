@@ -1,8 +1,8 @@
-C-4 64 01
+C-4 64 square
 D-4
-E-4 -- 02
+E-4 saw
 F-4
-G-4 50 03
+G-4 50 triangle
 A-4
-B-4 -- 04
+B-4 noise
 OFF

@@ -74,25 +74,24 @@ Each row starts with one of:
 Rows can also carry optional M8-style `volume` and `instrument` columns before any FX pairs:
 
 ```text
-C-4 64 01
-D-4 -- 02
---- -- 03
+C-4 64 saw
+D-4 triangle
+--- noise
 ```
 
 Column rules:
 
 - `volume`: `00` to `7F`, or `--` when omitted
-- `instrument`: `00` to `7F`, or `--` when omitted
-- if an `instrument` column is present without a `volume`, write `--` for the volume slot first
+- `instrument`: one of `sine`, `square`, `saw`, `triangle`, `noise`
 - a note row without an `instrument` column keeps the current instrument and changes pitch without retriggering it
 
 Rows can also carry zero or more FX pairs after the row event or optional columns:
 
 ```text
-C-4 64 01 VOL 20
-D-4 -- 02
+C-4 64 square VOL 20
+D-4 triangle
 --- PIT 01 FIN 40
---- -- 03 TSP FF TPO 90 VMV 80
+--- noise TSP FF TPO 90 VMV 80
 OFF VOL E0
 ```
 
@@ -105,15 +104,6 @@ Supported row FX today:
 - `TPO XX`: absolute tempo in BPM, encoded as a hex byte from `01` to `FF`
 - `VMV XX`: absolute master volume from `00` (mute) to `FF` (full scale)
 
-Current instrument mapping is intentionally minimal and local to this project:
-
-- `00`: sine
-- `01`: square
-- `02`: saw
-- `03`: triangle
-- `04`: noise
-- `05` to `7F`: fall back to the CLI `--synth` waveform until a real instrument bank exists
-
-This is not a full Dirtywave M8 instrument implementation. It is a small built-in bank over the existing single-voice synth so the `instrument` column is immediately usable in `gaga`.
+The `instrument` column is a names-only selector for the built-in waveforms. This is not a full Dirtywave M8 instrument implementation. It is a small built-in layer over the existing single-voice synth so the column is immediately usable in `gaga`.
 
 Pattern tokens are case-insensitive. Normalized output prints uppercase note names, column values, FX names, and hex values.

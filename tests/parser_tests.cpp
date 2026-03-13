@@ -141,10 +141,10 @@ bool test_volume_and_instrument_columns_parse() {
     gaga::SourceText source{
         "memory",
         std::vector<char>{
-            'C', '-', '4', ' ', '6', '4', ' ', '0', '1', ' ', 'V', 'O', 'L', ' ', '2', '0', '\n',
-            'D', '-', '4', ' ', '-', '-', ' ', '0', '2', '\n',
+            'C', '-', '4', ' ', '6', '4', ' ', 's', 'q', 'u', 'a', 'r', 'e', ' ', 'V', 'O', 'L', ' ', '2', '0', '\n',
+            'D', '-', '4', ' ', 't', 'r', 'i', 'a', 'n', 'g', 'l', 'e', '\n',
             'E', '-', '4', ' ', '4', '0', '\n',
-            '-', '-', '-', ' ', '-', '-', ' ', '0', '3',
+            '-', '-', '-', ' ', 'n', 'o', 'i', 's', 'e',
         }};
 
     const auto tokenization = gaga::tokenize(source);
@@ -172,7 +172,7 @@ bool test_volume_and_instrument_columns_parse() {
     }
 
     if (parse.pattern.row_columns[1] != gaga::kRowColumnInstrument ||
-        parse.pattern.instrument[1] != 0x02 ||
+        parse.pattern.instrument[1] != 0x03 ||
         parse.pattern.row_has_volume(1)) {
         std::cerr << "unexpected parsed columns on row 1\n";
         return false;
@@ -186,11 +186,44 @@ bool test_volume_and_instrument_columns_parse() {
     }
 
     return parse.pattern.row_columns[3] == gaga::kRowColumnInstrument &&
-           parse.pattern.instrument[3] == 0x03 &&
-           gaga::row_to_string(parse.pattern, 0) == "C-4 64 01 VOL 20" &&
-           gaga::row_to_string(parse.pattern, 1) == "D-4 -- 02" &&
+           parse.pattern.instrument[3] == 0x04 &&
+           gaga::row_to_string(parse.pattern, 0) == "C-4 64 square VOL 20" &&
+           gaga::row_to_string(parse.pattern, 1) == "D-4 triangle" &&
            gaga::row_to_string(parse.pattern, 2) == "E-4 40" &&
-           gaga::row_to_string(parse.pattern, 3) == "--- -- 03";
+           gaga::row_to_string(parse.pattern, 3) == "--- noise";
+}
+
+bool test_named_instrument_columns_parse() {
+    gaga::SourceText source{
+        "memory",
+        std::vector<char>{
+            'C', '-', '4', ' ', '6', '4', ' ', 's', 'a', 'w', '\n',
+            'D', '-', '4', ' ', '-', '-', ' ', 't', 'r', 'i', 'a', 'n', 'g', 'l', 'e', '\n',
+            'E', '-', '4', ' ', '-', '-', ' ', 'n', 'o', 'i', 's', 'e',
+        }};
+
+    const auto tokenization = gaga::tokenize(source);
+    if (!tokenization.diagnostics.empty()) {
+        std::cerr << "unexpected tokenizer diagnostics for named instrument columns\n";
+        return false;
+    }
+
+    const auto parse = gaga::parse_pattern(source, tokenization.stream);
+    if (!parse.diagnostics.empty()) {
+        std::cerr << "unexpected parser diagnostics for named instrument columns\n";
+        return false;
+    }
+
+    return parse.pattern.row_columns[0] == (gaga::kRowColumnVolume | gaga::kRowColumnInstrument) &&
+           parse.pattern.volume[0] == 0x64 &&
+           parse.pattern.instrument[0] == 0x02 &&
+           gaga::row_to_string(parse.pattern, 0) == "C-4 64 saw" &&
+           parse.pattern.row_columns[1] == gaga::kRowColumnInstrument &&
+           parse.pattern.instrument[1] == 0x03 &&
+           parse.pattern.row_columns[2] == gaga::kRowColumnInstrument &&
+           parse.pattern.instrument[2] == 0x04 &&
+           gaga::row_to_string(parse.pattern, 1) == "D-4 triangle" &&
+           gaga::row_to_string(parse.pattern, 2) == "E-4 noise";
 }
 
 bool test_column_values_over_7f_rejected() {
@@ -211,6 +244,46 @@ bool test_column_values_over_7f_rejected() {
     }
 
     return parse.diagnostics[0].kind == gaga::DiagnosticKind::InvalidToken;
+}
+
+bool test_unknown_named_instrument_rejected() {
+    gaga::SourceText source{
+        "memory",
+        std::vector<char>{'C', '-', '4', ' ', '-', '-', ' ', 's', 'u', 'p', 'e', 'r', 's', 'a', 'w', '\n'}};
+
+    const auto tokenization = gaga::tokenize(source);
+    if (!tokenization.diagnostics.empty()) {
+        std::cerr << "unexpected tokenizer diagnostics for unknown named instrument\n";
+        return false;
+    }
+
+    const auto parse = gaga::parse_pattern(source, tokenization.stream);
+    if (parse.diagnostics.size() != 1) {
+        std::cerr << "expected parser diagnostic for unknown named instrument\n";
+        return false;
+    }
+
+    return parse.diagnostics[0].kind == gaga::DiagnosticKind::InvalidToken;
+}
+
+bool test_numeric_instrument_rejected() {
+    gaga::SourceText source{
+        "memory",
+        std::vector<char>{'C', '-', '4', ' ', '6', '4', ' ', '0', '1', '\n'}};
+
+    const auto tokenization = gaga::tokenize(source);
+    if (!tokenization.diagnostics.empty()) {
+        std::cerr << "unexpected tokenizer diagnostics for numeric instrument\n";
+        return false;
+    }
+
+    const auto parse = gaga::parse_pattern(source, tokenization.stream);
+    if (parse.diagnostics.size() != 1) {
+        std::cerr << "expected parser diagnostic for numeric instrument\n";
+        return false;
+    }
+
+    return parse.diagnostics[0].kind == gaga::DiagnosticKind::TrailingTokens;
 }
 
 bool test_invalid_note_shape() {
@@ -271,7 +344,19 @@ int main() {
         return 1;
     }
 
+    if (!test_named_instrument_columns_parse()) {
+        return 1;
+    }
+
     if (!test_column_values_over_7f_rejected()) {
+        return 1;
+    }
+
+    if (!test_unknown_named_instrument_rejected()) {
+        return 1;
+    }
+
+    if (!test_numeric_instrument_rejected()) {
         return 1;
     }
 

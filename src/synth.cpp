@@ -119,6 +119,36 @@ std::string_view synth_type_name(SynthType type) {
     return "unknown";
 }
 
+tl::expected<uint8_t, std::string> parse_builtin_instrument_name(std::string_view name) {
+    const auto synth_type = parse_synth_type(name);
+    if (!synth_type) {
+        return tl::unexpected(synth_type.error());
+    }
+
+    switch (synth_type.value()) {
+    case SynthType::Sine:
+        return 0;
+    case SynthType::Square:
+        return 1;
+    case SynthType::Saw:
+        return 2;
+    case SynthType::Triangle:
+        return 3;
+    case SynthType::Noise:
+        return 4;
+    }
+
+    return tl::unexpected(std::string("invalid synth type: ") + std::string(name));
+}
+
+std::string_view builtin_instrument_name(uint8_t instrument) {
+    if (instrument < std::size(kInstrumentBank)) {
+        return synth_type_name(kInstrumentBank[instrument]);
+    }
+
+    return {};
+}
+
 void note_on(SynthVoice& voice, float frequency_hz, uint32_t sample_rate, SynthType type) {
     voice.active = true;
     voice.type = type;

@@ -4,6 +4,7 @@
 #include <iomanip>
 
 #include "note.hpp"
+#include "synth.hpp"
 
 namespace gaga {
 
@@ -42,14 +43,19 @@ std::string row_columns_to_string(const PatternData& pattern, size_t row) {
     }
 
     std::string result;
-    if (has_volume || has_instrument) {
-        result += has_volume ? hex_byte_to_string(pattern.volume[row]) : "--";
+    if (has_volume) {
+        result += hex_byte_to_string(pattern.volume[row]);
     }
     if (has_instrument) {
         if (!result.empty()) {
             result += ' ';
         }
-        result += hex_byte_to_string(pattern.instrument[row]);
+        const auto instrument_name = builtin_instrument_name(pattern.instrument[row]);
+        if (!instrument_name.empty()) {
+            result += instrument_name;
+        } else {
+            result += hex_byte_to_string(pattern.instrument[row]);
+        }
     }
     return result;
 }

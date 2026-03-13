@@ -76,6 +76,7 @@ if(BUILD_TESTING)
         src/parser.cpp
         src/pattern.cpp
         src/source_text.cpp
+        src/synth.cpp
         src/tokenizer.cpp
     )
 

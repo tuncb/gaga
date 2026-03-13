@@ -4,6 +4,7 @@
 #include <utility>
 
 #include "note.hpp"
+#include "synth.hpp"
 
 namespace gaga {
 
@@ -76,6 +77,14 @@ bool is_line_end(TokenKind kind) {
 
 bool is_column_token(TokenKind kind) {
     return kind == TokenKind::HexByte || kind == TokenKind::DoubleDash;
+}
+
+bool is_instrument_name_token(const SourceText& source, const TokenStream& stream, size_t index) {
+    if (index >= stream.size() || stream.kind[index] != TokenKind::Word) {
+        return false;
+    }
+
+    return parse_builtin_instrument_name(token_text(source, stream, index)).has_value();
 }
 
 bool token_equals(const SourceText& source, const TokenStream& stream, size_t index, std::string_view text) {
@@ -156,6 +165,21 @@ tl::expected<std::pair<bool, uint8_t>, DiagnosticKind> parse_column_value(
     }
 
     return std::pair<bool, uint8_t>{true, value.value()};
+}
+
+tl::expected<std::pair<bool, uint8_t>, DiagnosticKind> parse_instrument_column_value(
+    const SourceText& source,
+    const TokenStream& stream,
+    size_t index) {
+    if (stream.kind[index] == TokenKind::DoubleDash) {
+        return std::pair<bool, uint8_t>{false, 0};
+    }
+
+    const auto instrument = parse_builtin_instrument_name(token_text(source, stream, index));
+    if (!instrument) {
+        return tl::unexpected(DiagnosticKind::InvalidToken);
+    }
+    return std::pair<bool, uint8_t>{true, instrument.value()};
 }
 
 }  // namespace
@@ -244,8 +268,9 @@ ParseResult parse_pattern(const SourceText& source, const TokenStream& stream) {
             }
             ++index;
 
-            if (index < stream.size() && is_column_token(stream.kind[index])) {
-                const auto instrument = parse_column_value(source, stream, index);
+            if (index < stream.size() &&
+                (stream.kind[index] == TokenKind::DoubleDash || is_instrument_name_token(source, stream, index))) {
+                const auto instrument = parse_instrument_column_value(source, stream, index);
                 if (!instrument) {
                     result.diagnostics.push_back(make_diagnostic(stream, index, instrument.error()));
                     skip_to_line_end(stream, index);
@@ -258,6 +283,17 @@ ParseResult parse_pattern(const SourceText& source, const TokenStream& stream) {
                 }
                 ++index;
             }
+        } else if (is_instrument_name_token(source, stream, index)) {
+            const auto instrument = parse_instrument_column_value(source, stream, index);
+            if (!instrument) {
+                result.diagnostics.push_back(make_diagnostic(stream, index, instrument.error()));
+                skip_to_line_end(stream, index);
+                continue;
+            }
+
+            row_columns |= kRowColumnInstrument;
+            row_instrument = instrument.value().second;
+            ++index;
         }
 
         while (index < stream.size() && !is_line_end(stream.kind[index]) && stream.kind[index] != TokenKind::Comment) {
