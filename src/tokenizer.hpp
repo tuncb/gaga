@@ -13,6 +13,7 @@ namespace gaga {
 enum class TokenKind : uint8_t {
     Note,
     TripleDash,
+    DoubleDash,
     Word,
     HexByte,
     Comment,

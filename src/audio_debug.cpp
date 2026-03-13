@@ -98,6 +98,8 @@ RenderedAudio render_pattern_audio_debug(
     TransportState transport;
     SynthVoice voice;
     float master_gain = 1.0f;
+    voice.selected_type = config.synth_type;
+    voice.type = config.synth_type;
     initialize_transport(transport, config.sample_rate, config.bpm, config.lpb, false, true);
     apply_row_event(
         pattern,

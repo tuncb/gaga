@@ -15,6 +15,7 @@ build-msvc\gaga.exe examples\fx_fine_chime.gaga --trace
 build-msvc\gaga.exe examples\fx_transpose_hook.gaga --trace
 build-msvc\gaga.exe examples\fx_tempo_switch.gaga --trace
 build-msvc\gaga.exe examples\fx_master_pulse.gaga --trace
+build-msvc\gaga.exe examples\m8_columns.gaga --trace
 ```
 
 What to edit:
@@ -35,3 +36,4 @@ FX-focused examples:
 - `fx_transpose_hook.gaga`: uses `TSP` to move one riff across keys.
 - `fx_tempo_switch.gaga`: uses `TPO` for in-pattern tempo changes.
 - `fx_master_pulse.gaga`: uses `VMV` to shape the whole output level.
+- `m8_columns.gaga`: demonstrates M8-style volume and instrument columns with legato note changes.

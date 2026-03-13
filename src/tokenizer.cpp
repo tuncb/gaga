@@ -6,6 +6,13 @@ namespace gaga {
 
 namespace {
 
+char ascii_upper(char value) {
+    if (value >= 'a' && value <= 'z') {
+        return static_cast<char>(value - 'a' + 'A');
+    }
+    return value;
+}
+
 void push_token(
     TokenStream& stream,
     TokenKind kind,
@@ -21,15 +28,18 @@ void push_token(
 }
 
 bool is_note_letter(char value) {
-    return value >= 'A' && value <= 'G';
+    const char normalized = ascii_upper(value);
+    return normalized >= 'A' && normalized <= 'G';
 }
 
-bool is_uppercase_letter(char value) {
-    return value >= 'A' && value <= 'Z';
+bool is_word_letter(char value) {
+    const char normalized = ascii_upper(value);
+    return normalized >= 'A' && normalized <= 'Z';
 }
 
 bool is_hex_digit(char value) {
-    return (value >= '0' && value <= '9') || (value >= 'A' && value <= 'F');
+    const char normalized = ascii_upper(value);
+    return (normalized >= '0' && normalized <= '9') || (normalized >= 'A' && normalized <= 'F');
 }
 
 bool is_token_boundary(char value) {
@@ -126,6 +136,16 @@ TokenizationResult tokenize(const SourceText& source) {
             }
         }
 
+        if (current == '-' && index + 1 < source.bytes.size() && source.bytes[index + 1] == '-') {
+            const char boundary = index + 2 < source.bytes.size() ? source.bytes[index + 2] : '\0';
+            if (is_token_boundary(boundary)) {
+                push_token(result.stream, TokenKind::DoubleDash, token_offset, 2, line, token_column);
+                index += 2;
+                column += 2;
+                continue;
+            }
+        }
+
         if (is_hex_digit(current) && index + 1 < source.bytes.size() && is_hex_digit(source.bytes[index + 1])) {
             const char boundary = index + 2 < source.bytes.size() ? source.bytes[index + 2] : '\0';
             if (is_token_boundary(boundary)) {
@@ -136,9 +156,9 @@ TokenizationResult tokenize(const SourceText& source) {
             }
         }
 
-        if (is_uppercase_letter(current)) {
+        if (is_word_letter(current)) {
             size_t word_end = index + 1;
-            while (word_end < source.bytes.size() && is_uppercase_letter(source.bytes[word_end])) {
+            while (word_end < source.bytes.size() && is_word_letter(source.bytes[word_end])) {
                 ++word_end;
             }
 

@@ -142,6 +142,8 @@ tl::expected<void, RuntimeErrorKind> initialize_audio_engine(
     engine.active_snapshot = std::move(active_snapshot);
     engine.master_gain = 1.0f;
     engine.synth_type = synth_type;
+    engine.voice.selected_type = synth_type;
+    engine.voice.type = synth_type;
     initialize_transport(
         engine.transport,
         engine.sample_rate,

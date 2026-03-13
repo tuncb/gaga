@@ -255,15 +255,26 @@ std::string runtime_error_message(RuntimeErrorKind kind) {
 
 void print_trace_rows(std::ostream& out, const PatternSnapshot& snapshot) {
     for (size_t row = 0; row < snapshot.pattern.row_count(); ++row) {
+        const std::string columns = row_columns_to_string(snapshot.pattern, row);
         const std::string fx = row_fx_to_string(snapshot.pattern, row);
         switch (snapshot.pattern.op[row]) {
         case RowOp::Empty:
-            if (!fx.empty()) {
-                out << "row " << std::setw(3) << std::setfill('0') << row << ": fx " << fx << "\n";
+            if (!columns.empty() || !fx.empty()) {
+                out << "row " << std::setw(3) << std::setfill('0') << row << ":";
+                if (!columns.empty()) {
+                    out << " columns " << columns;
+                }
+                if (!fx.empty()) {
+                    out << (columns.empty() ? " fx " : ", fx ") << fx;
+                }
+                out << "\n";
             }
             break;
         case RowOp::NoteOff:
             out << "row " << std::setw(3) << std::setfill('0') << row << ": note off";
+            if (!columns.empty()) {
+                out << ", columns " << columns;
+            }
             if (!fx.empty()) {
                 out << ", fx " << fx;
             }
@@ -274,6 +285,9 @@ void print_trace_rows(std::ostream& out, const PatternSnapshot& snapshot) {
                 << row_event_to_string(snapshot.pattern.op[row], snapshot.pattern.note_index[row]) << " ("
                 << std::fixed << std::setprecision(2)
                 << snapshot.frequency_hz[snapshot.pattern.note_index[row]] << " Hz)";
+            if (!columns.empty()) {
+                out << ", columns " << columns;
+            }
             if (!fx.empty()) {
                 out << ", fx " << fx;
             }

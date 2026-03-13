@@ -81,6 +81,88 @@ bool test_audio_summary_counts() {
     return true;
 }
 
+bool test_volume_and_instrument_columns_update_voice_state() {
+    gaga::PatternData pattern;
+    pattern.op = {gaga::RowOp::NoteOn, gaga::RowOp::NoteOn, gaga::RowOp::NoteOn, gaga::RowOp::NoteOff};
+    pattern.note_index = {48, 50, 52, 0};
+    pattern.source_line = {1, 2, 3, 4};
+    pattern.row_columns = {
+        static_cast<uint8_t>(gaga::kRowColumnVolume | gaga::kRowColumnInstrument),
+        0,
+        gaga::kRowColumnInstrument,
+        0,
+    };
+    pattern.volume = {0x40, 0, 0, 0};
+    pattern.instrument = {0x02, 0, 0x03, 0};
+    pattern.fx_start = {0, 0, 0, 0};
+    pattern.fx_count = {0, 0, 0, 0};
+
+    std::vector<std::string> source_lines{
+        "C-4 40 02",
+        "D-4",
+        "E-4 -- 03",
+        "OFF",
+    };
+
+    const auto snapshot = gaga::build_snapshot(std::move(pattern), std::move(source_lines), 0, 0, 1);
+
+    gaga::TransportState transport;
+    gaga::SynthVoice voice;
+    float master_gain = 1.0f;
+    gaga::initialize_transport(transport, 48000, 120, 4, false, true);
+
+    gaga::apply_row_event(
+        snapshot.pattern,
+        0,
+        transport,
+        voice,
+        master_gain,
+        gaga::SynthType::Square,
+        snapshot.frequency_hz,
+        48000);
+    if (!voice.active || voice.type != gaga::SynthType::Saw) {
+        std::cerr << "expected instrument column to select saw on row 0\n";
+        return false;
+    }
+
+    if (!approximately_equal(voice.note_gain, 64.0f / 127.0f, 1.0e-4f)) {
+        std::cerr << "unexpected absolute note gain from volume column\n";
+        return false;
+    }
+
+    voice.phase = 1.25f;
+    gaga::apply_row_event(
+        snapshot.pattern,
+        1,
+        transport,
+        voice,
+        master_gain,
+        gaga::SynthType::Square,
+        snapshot.frequency_hz,
+        48000);
+    if (voice.type != gaga::SynthType::Saw || !approximately_equal(voice.phase, 1.25f)) {
+        std::cerr << "expected note row without instrument column to stay legato\n";
+        return false;
+    }
+
+    voice.phase = 2.0f;
+    gaga::apply_row_event(
+        snapshot.pattern,
+        2,
+        transport,
+        voice,
+        master_gain,
+        gaga::SynthType::Square,
+        snapshot.frequency_hz,
+        48000);
+    if (voice.type != gaga::SynthType::Triangle || !approximately_equal(voice.phase, 0.0f)) {
+        std::cerr << "expected instrument column to retrigger with triangle on row 2\n";
+        return false;
+    }
+
+    return true;
+}
+
 bool test_apply_row_fx_updates_voice_state() {
     gaga::PatternData pattern;
     pattern.op = {gaga::RowOp::NoteOn, gaga::RowOp::Empty, gaga::RowOp::Empty, gaga::RowOp::NoteOff};
@@ -299,6 +381,10 @@ int main() {
     }
 
     if (!test_parse_synth_type()) {
+        return 1;
+    }
+
+    if (!test_volume_and_instrument_columns_update_voice_state()) {
         return 1;
     }
 

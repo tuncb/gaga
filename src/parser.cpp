@@ -1,6 +1,7 @@
 #include "parser.hpp"
 
 #include <string_view>
+#include <utility>
 
 #include "note.hpp"
 
@@ -8,16 +9,43 @@ namespace gaga {
 
 namespace {
 
+char ascii_upper(char value) {
+    if (value >= 'a' && value <= 'z') {
+        return static_cast<char>(value - 'a' + 'A');
+    }
+    return value;
+}
+
+bool ascii_iequals(std::string_view left, std::string_view right) {
+    if (left.size() != right.size()) {
+        return false;
+    }
+
+    for (size_t index = 0; index < left.size(); ++index) {
+        if (ascii_upper(left[index]) != ascii_upper(right[index])) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 void append_row(
     PatternData& pattern,
     RowOp op,
     uint8_t note_index,
     uint32_t source_line,
+    uint8_t row_columns,
+    uint8_t volume,
+    uint8_t instrument,
     const std::vector<FxCommand>& row_fx_command,
     const std::vector<uint8_t>& row_fx_value) {
     pattern.op.push_back(op);
     pattern.note_index.push_back(note_index);
     pattern.source_line.push_back(source_line);
+    pattern.row_columns.push_back(row_columns);
+    pattern.volume.push_back(volume);
+    pattern.instrument.push_back(instrument);
     pattern.fx_start.push_back(static_cast<uint32_t>(pattern.fx_command.size()));
     pattern.fx_count.push_back(static_cast<uint16_t>(row_fx_command.size()));
     pattern.fx_command.insert(pattern.fx_command.end(), row_fx_command.begin(), row_fx_command.end());
@@ -46,8 +74,12 @@ bool is_line_end(TokenKind kind) {
     return kind == TokenKind::Newline || kind == TokenKind::EndOfFile;
 }
 
+bool is_column_token(TokenKind kind) {
+    return kind == TokenKind::HexByte || kind == TokenKind::DoubleDash;
+}
+
 bool token_equals(const SourceText& source, const TokenStream& stream, size_t index, std::string_view text) {
-    return token_text(source, stream, index) == text;
+    return ascii_iequals(token_text(source, stream, index), text);
 }
 
 tl::expected<FxCommand, DiagnosticKind> parse_fx_command(
@@ -55,22 +87,22 @@ tl::expected<FxCommand, DiagnosticKind> parse_fx_command(
     const TokenStream& stream,
     size_t index) {
     const auto text = token_text(source, stream, index);
-    if (text == "VOL") {
+    if (ascii_iequals(text, "VOL")) {
         return FxCommand::Volume;
     }
-    if (text == "PIT") {
+    if (ascii_iequals(text, "PIT")) {
         return FxCommand::Pitch;
     }
-    if (text == "FIN") {
+    if (ascii_iequals(text, "FIN")) {
         return FxCommand::Fine;
     }
-    if (text == "TSP") {
+    if (ascii_iequals(text, "TSP")) {
         return FxCommand::Transpose;
     }
-    if (text == "TPO") {
+    if (ascii_iequals(text, "TPO")) {
         return FxCommand::Tempo;
     }
-    if (text == "VMV") {
+    if (ascii_iequals(text, "VMV")) {
         return FxCommand::MasterVolume;
     }
 
@@ -87,11 +119,12 @@ tl::expected<uint8_t, DiagnosticKind> parse_hex_byte(
     }
 
     auto hex_digit = [](char value) -> int {
-        if (value >= '0' && value <= '9') {
-            return value - '0';
+        const char normalized = ascii_upper(value);
+        if (normalized >= '0' && normalized <= '9') {
+            return normalized - '0';
         }
-        if (value >= 'A' && value <= 'F') {
-            return 10 + (value - 'A');
+        if (normalized >= 'A' && normalized <= 'F') {
+            return 10 + (normalized - 'A');
         }
         return -1;
     };
@@ -103,6 +136,26 @@ tl::expected<uint8_t, DiagnosticKind> parse_hex_byte(
     }
 
     return static_cast<uint8_t>((high << 4U) | low);
+}
+
+tl::expected<std::pair<bool, uint8_t>, DiagnosticKind> parse_column_value(
+    const SourceText& source,
+    const TokenStream& stream,
+    size_t index) {
+    if (stream.kind[index] == TokenKind::DoubleDash) {
+        return std::pair<bool, uint8_t>{false, 0};
+    }
+
+    const auto value = parse_hex_byte(source, stream, index);
+    if (!value) {
+        return tl::unexpected(value.error());
+    }
+
+    if (value.value() > 0x7F) {
+        return tl::unexpected(DiagnosticKind::InvalidToken);
+    }
+
+    return std::pair<bool, uint8_t>{true, value.value()};
 }
 
 }  // namespace
@@ -140,6 +193,9 @@ ParseResult parse_pattern(const SourceText& source, const TokenStream& stream) {
         bool row_valid = true;
         RowOp row_op = RowOp::Empty;
         uint8_t row_note_index = 0;
+        uint8_t row_columns = 0;
+        uint8_t row_volume = 0;
+        uint8_t row_instrument = 0;
         std::vector<FxCommand> row_fx_command;
         std::vector<uint8_t> row_fx_value;
 
@@ -151,7 +207,7 @@ ParseResult parse_pattern(const SourceText& source, const TokenStream& stream) {
             ++index;
         } else if (kind == TokenKind::Note) {
             const auto text = token_text(source, stream, index);
-            const char letter = text[0];
+            const char letter = ascii_upper(text[0]);
             const char accidental = text[1];
             const char octave = text[2];
             const auto parsed_note = decode_note(letter, accidental, octave);
@@ -172,6 +228,36 @@ ParseResult parse_pattern(const SourceText& source, const TokenStream& stream) {
             result.diagnostics.push_back(make_diagnostic(stream, index, DiagnosticKind::UnexpectedToken));
             skip_to_line_end(stream, index);
             continue;
+        }
+
+        if (index < stream.size() && is_column_token(stream.kind[index])) {
+            const auto volume = parse_column_value(source, stream, index);
+            if (!volume) {
+                result.diagnostics.push_back(make_diagnostic(stream, index, volume.error()));
+                skip_to_line_end(stream, index);
+                continue;
+            }
+
+            if (volume.value().first) {
+                row_columns |= kRowColumnVolume;
+                row_volume = volume.value().second;
+            }
+            ++index;
+
+            if (index < stream.size() && is_column_token(stream.kind[index])) {
+                const auto instrument = parse_column_value(source, stream, index);
+                if (!instrument) {
+                    result.diagnostics.push_back(make_diagnostic(stream, index, instrument.error()));
+                    skip_to_line_end(stream, index);
+                    continue;
+                }
+
+                if (instrument.value().first) {
+                    row_columns |= kRowColumnInstrument;
+                    row_instrument = instrument.value().second;
+                }
+                ++index;
+            }
         }
 
         while (index < stream.size() && !is_line_end(stream.kind[index]) && stream.kind[index] != TokenKind::Comment) {
@@ -223,7 +309,16 @@ ParseResult parse_pattern(const SourceText& source, const TokenStream& stream) {
         }
 
         if (row_valid) {
-            append_row(result.pattern, row_op, row_note_index, stream.line[row_start], row_fx_command, row_fx_value);
+            append_row(
+                result.pattern,
+                row_op,
+                row_note_index,
+                stream.line[row_start],
+                row_columns,
+                row_volume,
+                row_instrument,
+                row_fx_command,
+                row_fx_value);
         }
 
         if (index < stream.size() && stream.kind[index] == TokenKind::Newline) {

@@ -30,6 +30,30 @@ std::string row_event_to_string(RowOp op, uint8_t note_index) {
     return "???";
 }
 
+std::string row_columns_to_string(const PatternData& pattern, size_t row) {
+    if (row >= pattern.row_count()) {
+        return {};
+    }
+
+    const bool has_volume = pattern.row_has_volume(row);
+    const bool has_instrument = pattern.row_has_instrument(row);
+    if (!has_volume && !has_instrument) {
+        return {};
+    }
+
+    std::string result;
+    if (has_volume || has_instrument) {
+        result += has_volume ? hex_byte_to_string(pattern.volume[row]) : "--";
+    }
+    if (has_instrument) {
+        if (!result.empty()) {
+            result += ' ';
+        }
+        result += hex_byte_to_string(pattern.instrument[row]);
+    }
+    return result;
+}
+
 std::string fx_command_to_string(FxCommand command) {
     switch (command) {
     case FxCommand::Volume:
@@ -74,6 +98,11 @@ std::string row_to_string(const PatternData& pattern, size_t row) {
     }
 
     std::string result = row_event_to_string(pattern.op[row], pattern.note_index[row]);
+    const std::string columns = row_columns_to_string(pattern, row);
+    if (!columns.empty()) {
+        result += ' ';
+        result += columns;
+    }
     const std::string fx = row_fx_to_string(pattern, row);
     if (!fx.empty()) {
         result += ' ';
@@ -97,6 +126,9 @@ PatternSnapshot build_snapshot(
     uint32_t display_generation) {
     PatternSnapshot snapshot;
     snapshot.pattern = std::move(pattern);
+    snapshot.pattern.row_columns.resize(snapshot.pattern.row_count(), 0);
+    snapshot.pattern.volume.resize(snapshot.pattern.row_count(), 0);
+    snapshot.pattern.instrument.resize(snapshot.pattern.row_count(), 0);
     snapshot.frequency_hz.resize(120);
     for (uint8_t note_index = 0; note_index < snapshot.frequency_hz.size(); ++note_index) {
         snapshot.frequency_hz[note_index] = note_index_to_frequency(note_index);

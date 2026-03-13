@@ -74,6 +74,7 @@ if(BUILD_TESTING)
         src/diagnostics.cpp
         src/note.cpp
         src/parser.cpp
+        src/pattern.cpp
         src/source_text.cpp
         src/tokenizer.cpp
     )

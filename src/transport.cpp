@@ -46,12 +46,28 @@ void apply_row_event(
         return;
     }
 
+    if (pattern.row_has_volume(row)) {
+        set_note_volume(voice, pattern.volume[row]);
+    }
+
+    const bool retrigger_instrument = pattern.row_has_instrument(row);
+    if (retrigger_instrument) {
+        select_instrument(voice, pattern.instrument[row], synth_type);
+    }
+
     switch (pattern.op[row]) {
     case RowOp::Empty:
         break;
-    case RowOp::NoteOn:
-        note_on(voice, frequency_hz[pattern.note_index[row]], sample_rate, synth_type);
+    case RowOp::NoteOn: {
+        const SynthType trigger_type =
+            voice.has_selected_instrument ? voice.selected_type : synth_type;
+        if (!voice.active || retrigger_instrument) {
+            note_on(voice, frequency_hz[pattern.note_index[row]], sample_rate, trigger_type);
+        } else {
+            change_note(voice, frequency_hz[pattern.note_index[row]], sample_rate);
+        }
         break;
+    }
     case RowOp::NoteOff:
         note_off(voice);
         break;

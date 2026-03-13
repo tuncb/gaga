@@ -10,6 +10,13 @@ namespace {
 constexpr float kTwoPi = 6.28318530717958647692f;
 constexpr float kAmplitude = 0.15f;
 constexpr float kMinFrequencyHz = 1.0f;
+constexpr SynthType kInstrumentBank[] = {
+    SynthType::Sine,
+    SynthType::Square,
+    SynthType::Saw,
+    SynthType::Triangle,
+    SynthType::Noise,
+};
 
 float phase_fraction(float phase) {
     return phase / kTwoPi;
@@ -66,6 +73,13 @@ float gain_scale_from_raw(uint8_t value) {
     return (std::clamp)(1.0f + signed_offset / 64.0f, 0.0f, 4.0f);
 }
 
+SynthType synth_type_from_instrument(uint8_t instrument, SynthType fallback_type) {
+    if (instrument < std::size(kInstrumentBank)) {
+        return kInstrumentBank[instrument];
+    }
+    return fallback_type;
+}
+
 }  // namespace
 
 tl::expected<SynthType, std::string> parse_synth_type(std::string_view name) {
@@ -108,9 +122,20 @@ std::string_view synth_type_name(SynthType type) {
 void note_on(SynthVoice& voice, float frequency_hz, uint32_t sample_rate, SynthType type) {
     voice.active = true;
     voice.type = type;
+    voice.selected_type = type;
     voice.phase = 0.0f;
     voice.base_frequency_hz = frequency_hz;
     voice.phase_step = 0.0f;
+    refresh_pitch_state(voice, sample_rate);
+}
+
+void change_note(SynthVoice& voice, float frequency_hz, uint32_t sample_rate) {
+    if (!voice.active) {
+        note_on(voice, frequency_hz, sample_rate, voice.selected_type);
+        return;
+    }
+
+    voice.base_frequency_hz = frequency_hz;
     refresh_pitch_state(voice, sample_rate);
 }
 
@@ -118,6 +143,16 @@ void note_off(SynthVoice& voice) {
     voice.active = false;
     voice.phase = 0.0f;
     voice.phase_step = 0.0f;
+}
+
+void select_instrument(SynthVoice& voice, uint8_t instrument, SynthType fallback_type) {
+    voice.has_selected_instrument = true;
+    voice.selected_type = synth_type_from_instrument(instrument, fallback_type);
+}
+
+void set_note_volume(SynthVoice& voice, uint8_t value) {
+    const uint8_t clamped = (std::min)(value, static_cast<uint8_t>(0x7F));
+    voice.note_gain = static_cast<float>(clamped) / 127.0f;
 }
 
 void set_volume_offset(SynthVoice& voice, uint8_t value) {
@@ -163,7 +198,7 @@ float next_sample(SynthVoice& voice) {
         break;
     }
 
-    const float sample = waveform * kAmplitude * voice.gain_scale;
+    const float sample = waveform * kAmplitude * voice.note_gain * voice.gain_scale;
     voice.phase += voice.phase_step;
     if (voice.phase >= kTwoPi) {
         voice.phase -= kTwoPi * std::floor(voice.phase / kTwoPi);
